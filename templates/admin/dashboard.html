@@ -1,0 +1,174 @@
+{% extends "admin/base.html" %}
+{% block title %}Dashboard{% endblock %}
+{% block page_title %}Dashboard{% endblock %}
+{% block page_subtitle %}Portfolio overview and quick actions{% endblock %}
+
+{% block content %}
+
+<!-- Stat Cards -->
+<div class="row g-3 mb-4">
+  <div class="col-6 col-xl-2">
+    <div class="stat-card">
+      <div class="stat-card-icon" style="background:rgba(79,70,229,0.1);color:#4F46E5;">
+        <i class="fas fa-code-branch"></i>
+      </div>
+      <div class="stat-card-num">{{ stats.projects }}</div>
+      <div class="stat-card-label">Projects</div>
+    </div>
+  </div>
+  <div class="col-6 col-xl-2">
+    <div class="stat-card">
+      <div class="stat-card-icon" style="background:rgba(6,182,212,0.1);color:#06B6D4;">
+        <i class="fas fa-brain"></i>
+      </div>
+      <div class="stat-card-num">{{ stats.skills }}</div>
+      <div class="stat-card-label">Skills</div>
+    </div>
+  </div>
+  <div class="col-6 col-xl-2">
+    <div class="stat-card">
+      <div class="stat-card-icon" style="background:rgba(16,185,129,0.1);color:#10B981;">
+        <i class="fas fa-certificate"></i>
+      </div>
+      <div class="stat-card-num">{{ stats.certifications }}</div>
+      <div class="stat-card-label">Certifications</div>
+    </div>
+  </div>
+  <div class="col-6 col-xl-2">
+    <div class="stat-card">
+      <div class="stat-card-icon" style="background:rgba(245,158,11,0.1);color:#F59E0B;">
+        <i class="fas fa-trophy"></i>
+      </div>
+      <div class="stat-card-num">{{ stats.achievements }}</div>
+      <div class="stat-card-label">Achievements</div>
+    </div>
+  </div>
+  <div class="col-6 col-xl-2">
+    <div class="stat-card">
+      <div class="stat-card-icon" style="background:rgba(239,68,68,0.1);color:#EF4444;">
+        <i class="fas fa-inbox"></i>
+      </div>
+      <div class="stat-card-num">{{ stats.messages }}</div>
+      <div class="stat-card-label">Messages</div>
+    </div>
+  </div>
+  <div class="col-6 col-xl-2">
+    <div class="stat-card">
+      <div class="stat-card-icon" style="background:rgba(124,58,237,0.1);color:#7C3AED;">
+        <i class="fas fa-envelope-open"></i>
+      </div>
+      <div class="stat-card-num">{{ stats.unread }}</div>
+      <div class="stat-card-label">Unread</div>
+    </div>
+  </div>
+</div>
+
+<div class="row g-4">
+
+  <!-- Quick Actions -->
+  <div class="col-lg-4">
+    <div class="admin-card h-100">
+      <div class="admin-card-header">
+        <h6><i class="fas fa-bolt me-2" style="color:#F59E0B;"></i>Quick Actions</h6>
+      </div>
+      <div class="admin-card-body">
+        <div class="d-grid gap-2">
+          <a href="{{ url_for('admin_add_project') }}" class="btn btn-primary btn-sm text-start">
+            <i class="fas fa-plus me-2"></i>Add New Project
+          </a>
+          <a href="{{ url_for('admin_skills') }}" class="btn btn-outline-primary btn-sm text-start">
+            <i class="fas fa-plus me-2"></i>Add New Skill
+          </a>
+          <a href="{{ url_for('admin_certifications') }}" class="btn btn-outline-primary btn-sm text-start">
+            <i class="fas fa-plus me-2"></i>Add Certification
+          </a>
+          <a href="{{ url_for('admin_achievements') }}" class="btn btn-outline-primary btn-sm text-start">
+            <i class="fas fa-plus me-2"></i>Add Achievement
+          </a>
+          <a href="{{ url_for('admin_profile') }}" class="btn btn-outline-primary btn-sm text-start">
+            <i class="fas fa-user-edit me-2"></i>Edit Profile
+          </a>
+          <a href="{{ url_for('index') }}" target="_blank" class="btn btn-outline-primary btn-sm text-start">
+            <i class="fas fa-external-link-alt me-2"></i>View Live Portfolio
+          </a>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Recent Messages -->
+  <div class="col-lg-8">
+    <div class="admin-card h-100">
+      <div class="admin-card-header">
+        <h6><i class="fas fa-inbox me-2" style="color:#4F46E5;"></i>Recent Messages</h6>
+        <a href="{{ url_for('admin_messages') }}" class="btn btn-outline-primary btn-sm">View All</a>
+      </div>
+      <div class="admin-card-body p-0">
+        {% if recent_messages %}
+        <table class="admin-table">
+          <thead>
+            <tr>
+              <th>Name</th>
+              <th>Email</th>
+              <th>Subject</th>
+              <th>Date</th>
+              <th>Status</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for msg in recent_messages %}
+            <tr>
+              <td><strong>{{ msg.name }}</strong></td>
+              <td style="color:#64748B;font-size:0.82rem;">{{ msg.email }}</td>
+              <td style="max-width:160px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">
+                {{ msg.subject or '—' }}
+              </td>
+              <td style="color:#94A3B8;font-size:0.78rem;">
+                {{ msg.created_at.strftime('%d %b %Y') }}
+              </td>
+              <td>
+                {% if not msg.is_read %}
+                  <span class="badge-danger">Unread</span>
+                {% else %}
+                  <span class="badge-success">Read</span>
+                {% endif %}
+              </td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+        {% else %}
+        <div class="text-center py-5" style="color:#94A3B8;">
+          <i class="fas fa-inbox fa-2x mb-3 d-block"></i>
+          <p style="font-size:0.88rem;">No messages yet.</p>
+        </div>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<!-- Nav shortcuts row -->
+<div class="row g-3 mt-1">
+  {% set shortcuts = [
+    ('Manage Projects',      'fas fa-code-branch', 'admin_projects',      '#4F46E5'),
+    ('Manage Skills',        'fas fa-brain',        'admin_skills',        '#06B6D4'),
+    ('Manage Experience',    'fas fa-briefcase',    'admin_experience',    '#10B981'),
+    ('Manage Certifications','fas fa-certificate',  'admin_certifications','#F59E0B'),
+    ('Manage Achievements',  'fas fa-trophy',       'admin_achievements',  '#7C3AED'),
+    ('Social Links',         'fas fa-share-nodes',  'admin_social',        '#EF4444'),
+  ] %}
+  {% for label, icon, endpoint, color in shortcuts %}
+  <div class="col-6 col-md-4 col-lg-2">
+    <a href="{{ url_for(endpoint) }}" class="stat-card d-flex flex-column align-items-center text-center text-decoration-none gap-2" style="padding:18px 10px;">
+      <div class="stat-card-icon m-0" style="background:{{ color }}18;color:{{ color }};margin-bottom:0!important;">
+        <i class="{{ icon }}"></i>
+      </div>
+      <span style="font-size:0.76rem;color:#475569;font-weight:600;line-height:1.3;">{{ label }}</span>
+    </a>
+  </div>
+  {% endfor %}
+</div>
+
+{% endblock %}

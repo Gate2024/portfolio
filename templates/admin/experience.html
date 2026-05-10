@@ -1,0 +1,134 @@
+{% extends "admin/base.html" %}
+{% block title %}Experience{% endblock %}
+{% block page_title %}Experience{% endblock %}
+{% block page_subtitle %}Manage your professional work history and internships{% endblock %}
+
+{% block content %}
+<div class="row g-4">
+
+  <!-- Add Experience Form -->
+  <div class="col-lg-4">
+    <div class="admin-card" style="position:sticky;top:80px;">
+      <div class="admin-card-header">
+        <h6><i class="fas fa-plus me-2" style="color:#4F46E5;"></i>Add Experience</h6>
+      </div>
+      <div class="admin-card-body">
+        <form method="POST" action="{{ url_for('admin_add_experience') }}">
+          <div class="mb-3">
+            <label class="form-label">Job Title *</label>
+            <input type="text" name="title" class="form-control"
+                   placeholder="e.g. Software Development Intern" required />
+          </div>
+          <div class="mb-3">
+            <label class="form-label">Company / Organisation *</label>
+            <input type="text" name="company" class="form-control"
+                   placeholder="e.g. Vikalpa Guru Pvt. Ltd" required />
+          </div>
+          <div class="mb-3">
+            <label class="form-label">Location</label>
+            <input type="text" name="location" class="form-control"
+                   placeholder="e.g. On-site / Remote / Online" />
+          </div>
+          <div class="row g-2 mb-3">
+            <div class="col-6">
+              <label class="form-label">Start Date</label>
+              <input type="text" name="start_date" class="form-control" placeholder="Jun 2025" />
+            </div>
+            <div class="col-6">
+              <label class="form-label">End Date</label>
+              <input type="text" name="end_date" class="form-control" placeholder="Aug 2025 / Present" />
+            </div>
+          </div>
+          <div class="mb-3">
+            <label class="form-label">Employment Type</label>
+            <input type="text" name="emp_type" class="form-control"
+                   placeholder="e.g. Internship · 2 Months" />
+          </div>
+          <div class="mb-3">
+            <label class="form-label">Technologies Used</label>
+            <input type="text" name="technologies" class="form-control"
+                   placeholder="Python, Flask, MySQL (comma-separated)" />
+          </div>
+          <div class="mb-3">
+            <label class="form-label">Responsibilities</label>
+            <textarea name="responsibilities" class="form-control" rows="5"
+                      placeholder="One responsibility per line:&#10;Developed Book Management module&#10;Implemented CRUD operations&#10;Built role-based dashboard"></textarea>
+            <small style="color:#94A3B8;font-size:0.72rem;">One item per line.</small>
+          </div>
+          <div class="mb-3">
+            <label class="form-label">Display Order</label>
+            <input type="number" name="order" class="form-control" value="0" min="0" />
+          </div>
+          <button type="submit" class="btn btn-primary w-100">
+            <i class="fas fa-plus me-2"></i>Add Experience
+          </button>
+        </form>
+      </div>
+    </div>
+  </div>
+
+  <!-- Experience List -->
+  <div class="col-lg-8">
+    <div class="admin-card">
+      <div class="admin-card-header">
+        <h6><i class="fas fa-briefcase me-2" style="color:#10B981;"></i>Work History
+          <span style="background:#ECFDF5;color:#059669;padding:2px 10px;border-radius:20px;font-size:0.72rem;margin-left:8px;font-weight:700;">{{ experiences|length }}</span>
+        </h6>
+      </div>
+      <div class="admin-card-body p-0">
+        {% if experiences %}
+        {% for exp in experiences %}
+        <div style="padding:20px 22px;border-bottom:1px solid #F1F5F9;">
+          <div style="display:flex;justify-content:space-between;align-items:flex-start;flex-wrap:wrap;gap:8px;margin-bottom:10px;">
+            <div>
+              <div style="font-weight:800;font-size:0.95rem;color:#0F172A;">{{ exp.title }}</div>
+              <div style="color:#4F46E5;font-weight:600;font-size:0.85rem;margin-top:2px;">{{ exp.company }}</div>
+              <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:6px;">
+                <span style="background:#F1F5F9;color:#475569;font-size:0.72rem;padding:2px 10px;border-radius:20px;border:1px solid #E2E8F0;">
+                  <i class="fas fa-calendar me-1"></i>{{ exp.start_date }} – {{ exp.end_date }}
+                </span>
+                <span style="background:rgba(79,70,229,0.07);color:#4F46E5;font-size:0.72rem;padding:2px 10px;border-radius:20px;">{{ exp.emp_type }}</span>
+                {% if exp.location %}
+                <span style="color:#94A3B8;font-size:0.72rem;"><i class="fas fa-map-marker-alt me-1"></i>{{ exp.location }}</span>
+                {% endif %}
+              </div>
+            </div>
+            <div>
+              <form method="POST" action="{{ url_for('admin_delete_experience', eid=exp.id) }}" style="display:inline;"
+                    onsubmit="return confirm('Delete «{{ exp.title }}» at {{ exp.company }}?');">
+                <button type="submit" class="delete-btn"><i class="fas fa-trash me-1"></i>Delete</button>
+              </form>
+            </div>
+          </div>
+
+          {% if exp.resp_list() %}
+          <ul style="padding-left:0;margin-bottom:10px;">
+            {% for r in exp.resp_list() %}
+            <li style="font-size:0.82rem;color:#475569;padding:3px 0 3px 18px;position:relative;border-bottom:1px solid #F8FAFC;">
+              <span style="position:absolute;left:0;color:#4F46E5;font-weight:700;">›</span>{{ r }}
+            </li>
+            {% endfor %}
+          </ul>
+          {% endif %}
+
+          {% if exp.technologies %}
+          <div style="display:flex;flex-wrap:wrap;gap:5px;">
+            {% for t in exp.tech_list() %}
+            <span style="font-size:0.68rem;background:rgba(14,165,233,0.08);color:#0891B2;border:1px solid rgba(14,165,233,0.2);padding:2px 8px;border-radius:4px;">{{ t }}</span>
+            {% endfor %}
+          </div>
+          {% endif %}
+        </div>
+        {% endfor %}
+        {% else %}
+        <div class="text-center py-5" style="color:#94A3B8;">
+          <i class="fas fa-briefcase fa-2x mb-3 d-block"></i>
+          <p style="font-size:0.88rem;">No experience entries yet.</p>
+        </div>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+
+</div>
+{% endblock %}

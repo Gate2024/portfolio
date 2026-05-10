@@ -1,0 +1,98 @@
+{% extends "admin/base.html" %}
+{% block title %}Projects{% endblock %}
+{% block page_title %}Projects{% endblock %}
+{% block page_subtitle %}Manage your portfolio projects{% endblock %}
+
+{% block content %}
+
+<div class="admin-card">
+  <div class="admin-card-header">
+    <h6><i class="fas fa-code-branch me-2" style="color:#4F46E5;"></i>All Projects
+      <span style="background:#EEF2FF;color:#4F46E5;padding:2px 10px;border-radius:20px;font-size:0.72rem;margin-left:8px;font-weight:700;">{{ projects|length }}</span>
+    </h6>
+    <a href="{{ url_for('admin_add_project') }}" class="btn btn-primary btn-sm">
+      <i class="fas fa-plus me-1"></i> Add Project
+    </a>
+  </div>
+
+  <div class="admin-card-body p-0">
+    {% if projects %}
+    <div style="overflow-x:auto;">
+      <table class="admin-table">
+        <thead>
+          <tr>
+            <th>#</th>
+            <th>Project</th>
+            <th>Category</th>
+            <th>Tech Stack</th>
+            <th>Featured</th>
+            <th>GitHub</th>
+            <th style="text-align:right;">Actions</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for p in projects %}
+          <tr>
+            <td style="color:#94A3B8;font-weight:600;">{{ p.order or loop.index }}</td>
+            <td>
+              <div style="font-weight:700;font-size:0.88rem;color:#0F172A;">{{ p.title }}</div>
+              <div style="color:#94A3B8;font-size:0.74rem;max-width:240px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">
+                {{ p.description[:70] if p.description else '—' }}…
+              </div>
+            </td>
+            <td><span class="badge-primary">{{ p.category }}</span></td>
+            <td>
+              <div style="display:flex;flex-wrap:wrap;gap:4px;max-width:200px;">
+                {% for t in p.tech_list()[:3] %}
+                <span style="font-size:0.68rem;background:#F1F5F9;color:#475569;padding:2px 7px;border-radius:4px;">{{ t }}</span>
+                {% endfor %}
+                {% if p.tech_list()|length > 3 %}
+                <span style="font-size:0.68rem;color:#94A3B8;">+{{ p.tech_list()|length - 3 }}</span>
+                {% endif %}
+              </div>
+            </td>
+            <td>
+              {% if p.is_featured %}
+                <span class="badge-warning"><i class="fas fa-star me-1"></i>Yes</span>
+              {% else %}
+                <span style="color:#CBD5E1;font-size:0.78rem;">No</span>
+              {% endif %}
+            </td>
+            <td>
+              {% if p.github_url %}
+                <a href="{{ p.github_url }}" target="_blank" style="color:#4F46E5;font-size:0.82rem;">
+                  <i class="fab fa-github me-1"></i>Link
+                </a>
+              {% else %}
+                <span style="color:#CBD5E1;font-size:0.78rem;">—</span>
+              {% endif %}
+            </td>
+            <td style="text-align:right;">
+              <a href="{{ url_for('admin_edit_project', pid=p.id) }}" class="edit-btn" title="Edit">
+                <i class="fas fa-pencil"></i>
+              </a>
+              <form method="POST" action="{{ url_for('admin_delete_project', pid=p.id) }}" style="display:inline;"
+                    onsubmit="return confirm('Delete «{{ p.title }}»? This cannot be undone.');">
+                <button type="submit" class="delete-btn" title="Delete">
+                  <i class="fas fa-trash"></i>
+                </button>
+              </form>
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% else %}
+    <div class="text-center py-5" style="color:#94A3B8;">
+      <i class="fas fa-code-branch fa-2x mb-3 d-block"></i>
+      <p style="font-size:0.88rem;margin-bottom:16px;">No projects yet. Add your first one!</p>
+      <a href="{{ url_for('admin_add_project') }}" class="btn btn-primary btn-sm">
+        <i class="fas fa-plus me-1"></i> Add Project
+      </a>
+    </div>
+    {% endif %}
+  </div>
+</div>
+
+{% endblock %}

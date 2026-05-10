@@ -1,0 +1,129 @@
+{% extends "admin/base.html" %}
+{% block title %}{{ 'Edit' if project else 'Add' }} Project{% endblock %}
+{% block page_title %}{{ 'Edit Project' if project else 'Add New Project' }}{% endblock %}
+{% block page_subtitle %}{{ 'Update project details' if project else 'Fill in the details for a new project' }}{% endblock %}
+
+{% block content %}
+<form method="POST" enctype="multipart/form-data">
+  <div class="row g-4">
+
+    <!-- Main Details -->
+    <div class="col-lg-8">
+      <div class="admin-card mb-4">
+        <div class="admin-card-header">
+          <h6><i class="fas fa-info-circle me-2" style="color:#4F46E5;"></i>Project Details</h6>
+        </div>
+        <div class="admin-card-body">
+          <div class="row g-3">
+            <div class="col-12">
+              <label class="form-label">Project Title *</label>
+              <input type="text" name="title" class="form-control"
+                     value="{{ project.title if project else '' }}"
+                     placeholder="e.g. ML-Based Crop Disease Diagnostic System" required />
+            </div>
+            <div class="col-sm-6">
+              <label class="form-label">Category</label>
+              <select name="category" class="form-select">
+                {% set cats = ['AI / ML', 'Full Stack', 'Python', '.NET', 'Data Science', 'Other'] %}
+                {% for c in cats %}
+                <option value="{{ c }}" {% if project and project.category == c %}selected{% endif %}>{{ c }}</option>
+                {% endfor %}
+              </select>
+            </div>
+            <div class="col-sm-6">
+              <label class="form-label">Display Order</label>
+              <input type="number" name="order" class="form-control"
+                     value="{{ project.order if project else 0 }}" min="0" />
+            </div>
+            <div class="col-12">
+              <label class="form-label">Description</label>
+              <textarea name="description" class="form-control" rows="4"
+                        placeholder="Describe what this project does, its purpose and impact…">{{ project.description if project else '' }}</textarea>
+            </div>
+            <div class="col-12">
+              <label class="form-label">Tech Stack</label>
+              <input type="text" name="tech_stack" class="form-control"
+                     value="{{ project.tech_stack if project else '' }}"
+                     placeholder="Python, Flask, TensorFlow, OpenCV (comma-separated)" />
+            </div>
+            <div class="col-12">
+              <label class="form-label">Key Features</label>
+              <textarea name="features" class="form-control" rows="6"
+                        placeholder="One feature per line:&#10;Plant disease prediction via deep learning&#10;Real-time image processing with OpenCV&#10;Admin dashboard with analytics">{% if project %}{% for f in project.features_list() %}{{ f }}
+{% endfor %}{% endif %}</textarea>
+              <small style="color:#94A3B8;font-size:0.72rem;">Enter one feature per line.</small>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Side: Links + Image + Options -->
+    <div class="col-lg-4">
+
+      <div class="admin-card mb-4">
+        <div class="admin-card-header">
+          <h6><i class="fas fa-link me-2" style="color:#06B6D4;"></i>Links</h6>
+        </div>
+        <div class="admin-card-body">
+          <div class="mb-3">
+            <label class="form-label"><i class="fab fa-github me-1"></i>GitHub URL</label>
+            <input type="url" name="github_url" class="form-control"
+                   value="{{ project.github_url if project else '' }}"
+                   placeholder="https://github.com/username/repo" />
+          </div>
+          <div class="mb-0">
+            <label class="form-label"><i class="fas fa-external-link-alt me-1"></i>Live Demo URL</label>
+            <input type="url" name="live_url" class="form-control"
+                   value="{{ project.live_url if project else '' }}"
+                   placeholder="https://yourapp.com" />
+          </div>
+        </div>
+      </div>
+
+      <div class="admin-card mb-4">
+        <div class="admin-card-header">
+          <h6><i class="fas fa-image me-2" style="color:#F59E0B;"></i>Project Image</h6>
+        </div>
+        <div class="admin-card-body">
+          {% if project and project.image %}
+          <div style="margin-bottom:12px;">
+            <img src="{{ url_for('static', filename=project.image) }}"
+                 style="width:100%;border-radius:10px;aspect-ratio:16/9;object-fit:cover;" />
+          </div>
+          {% endif %}
+          <input type="file" name="image" class="form-control" accept="image/*" />
+          <small style="color:#94A3B8;font-size:0.72rem;display:block;margin-top:5px;">
+            Recommended: 800×450px, JPG/PNG/WEBP
+          </small>
+        </div>
+      </div>
+
+      <div class="admin-card mb-4">
+        <div class="admin-card-header">
+          <h6><i class="fas fa-cog me-2" style="color:#7C3AED;"></i>Options</h6>
+        </div>
+        <div class="admin-card-body">
+          <div class="form-check">
+            <input class="form-check-input" type="checkbox" name="is_featured" id="chkFeatured"
+                   {% if project and project.is_featured %}checked{% endif %} />
+            <label class="form-check-label" for="chkFeatured" style="font-size:0.85rem;font-weight:500;">
+              Mark as Featured Project
+            </label>
+          </div>
+        </div>
+      </div>
+
+      <div class="d-grid gap-2">
+        <button type="submit" class="btn btn-primary">
+          <i class="fas fa-save me-2"></i>{{ 'Update Project' if project else 'Save Project' }}
+        </button>
+        <a href="{{ url_for('admin_projects') }}" class="btn btn-outline-primary">
+          <i class="fas fa-arrow-left me-2"></i>Back to Projects
+        </a>
+      </div>
+
+    </div>
+  </div>
+</form>
+{% endblock %}

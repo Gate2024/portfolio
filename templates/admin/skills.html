@@ -1,0 +1,159 @@
+{% extends "admin/base.html" %}
+{% block title %}Skills{% endblock %}
+{% block page_title %}Skills{% endblock %}
+{% block page_subtitle %}Manage your technical skills and proficiency levels{% endblock %}
+
+{% block content %}
+<div class="row g-4">
+
+  <!-- Add Skill Form -->
+  <div class="col-lg-4">
+    <div class="admin-card" style="position:sticky;top:80px;">
+      <div class="admin-card-header">
+        <h6><i class="fas fa-plus me-2" style="color:#4F46E5;"></i>Add New Skill</h6>
+      </div>
+      <div class="admin-card-body">
+        <form method="POST" action="{{ url_for('admin_add_skill') }}">
+          <div class="mb-3">
+            <label class="form-label">Skill Name *</label>
+            <input type="text" name="name" class="form-control" placeholder="e.g. TensorFlow" required />
+          </div>
+          <div class="mb-3">
+            <label class="form-label">Category *</label>
+            <select name="category" class="form-select">
+              <option value="Programming Languages">Programming Languages</option>
+              <option value="AI / ML">AI / ML</option>
+              <option value="Web Development">Web Development</option>
+              <option value="Databases">Databases</option>
+              <option value="Cloud & DevOps">Cloud & DevOps</option>
+              <option value="CS Fundamentals">CS Fundamentals</option>
+              <option value="Tools">Tools</option>
+            </select>
+          </div>
+          <div class="mb-3">
+            <label class="form-label">Proficiency: <span id="profVal">80</span>%</label>
+            <input type="range" name="proficiency" class="form-range" min="10" max="100" step="5"
+                   value="80" oninput="document.getElementById('profVal').textContent=this.value" />
+          </div>
+          <div class="mb-3">
+            <label class="form-label">Display Order</label>
+            <input type="number" name="order" class="form-control" value="0" min="0" />
+          </div>
+          <button type="submit" class="btn btn-primary w-100">
+            <i class="fas fa-plus me-2"></i>Add Skill
+          </button>
+        </form>
+      </div>
+    </div>
+  </div>
+
+  <!-- Skills List -->
+  <div class="col-lg-8">
+    <div class="admin-card">
+      <div class="admin-card-header">
+        <h6><i class="fas fa-brain me-2" style="color:#06B6D4;"></i>All Skills
+          <span style="background:#EEF2FF;color:#4F46E5;padding:2px 10px;border-radius:20px;font-size:0.72rem;margin-left:8px;font-weight:700;">{{ skills|length }}</span>
+        </h6>
+      </div>
+      <div class="admin-card-body p-0">
+        {% if skills %}
+        {% set categories = skills | groupby('category') %}
+        {% for cat, cat_skills in categories %}
+        <div style="padding:14px 20px 6px;background:#FAFBFF;border-bottom:1px solid #F1F5F9;">
+          <span style="font-size:0.72rem;font-weight:700;text-transform:uppercase;letter-spacing:0.1em;color:#64748B;">{{ cat }}</span>
+        </div>
+        {% for skill in cat_skills %}
+        <div style="display:flex;align-items:center;padding:12px 20px;border-bottom:1px solid #F8FAFC;gap:12px;" id="skill-row-{{ skill.id }}">
+          <div style="flex:1;min-width:0;">
+            <div style="font-weight:600;font-size:0.88rem;color:#0F172A;">{{ skill.name }}</div>
+            <div style="display:flex;align-items:center;gap:8px;margin-top:4px;">
+              <div style="flex:1;max-width:160px;height:4px;background:#E2E8F0;border-radius:4px;overflow:hidden;">
+                <div style="width:{{ skill.proficiency }}%;height:100%;background:linear-gradient(90deg,#4F46E5,#7C3AED);border-radius:4px;"></div>
+              </div>
+              <span style="font-size:0.72rem;color:#4F46E5;font-weight:700;">{{ skill.proficiency }}%</span>
+            </div>
+          </div>
+          <div style="display:flex;gap:4px;align-items:center;">
+            <button class="edit-btn" onclick="openEditSkill({{ skill.id }}, '{{ skill.name }}', '{{ skill.category }}', {{ skill.proficiency }}, {{ skill.order }})" title="Edit">
+              <i class="fas fa-pencil"></i>
+            </button>
+            <form method="POST" action="{{ url_for('admin_delete_skill', sid=skill.id) }}" style="display:inline;"
+                  onsubmit="return confirm('Delete «{{ skill.name }}»?');">
+              <button type="submit" class="delete-btn" title="Delete"><i class="fas fa-trash"></i></button>
+            </form>
+          </div>
+        </div>
+        {% endfor %}
+        {% endfor %}
+        {% else %}
+        <div class="text-center py-5" style="color:#94A3B8;">
+          <i class="fas fa-brain fa-2x mb-3 d-block"></i>
+          <p style="font-size:0.88rem;">No skills added yet.</p>
+        </div>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<!-- Edit Skill Modal -->
+<div class="modal fade" id="editSkillModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered" style="max-width:400px;">
+    <div class="modal-content" style="border-radius:16px;border:1px solid #E2E8F0;">
+      <div class="modal-header" style="border-bottom:1px solid #E2E8F0;padding:18px 22px;">
+        <h6 style="font-family:'Syne',sans-serif;font-weight:700;margin:0;">Edit Skill</h6>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <form method="POST" id="editSkillForm">
+        <div class="modal-body" style="padding:22px;">
+          <div class="mb-3">
+            <label class="form-label">Skill Name</label>
+            <input type="text" name="name" id="editSkillName" class="form-control" required />
+          </div>
+          <div class="mb-3">
+            <label class="form-label">Category</label>
+            <select name="category" id="editSkillCat" class="form-select">
+              <option value="Programming Languages">Programming Languages</option>
+              <option value="AI / ML">AI / ML</option>
+              <option value="Web Development">Web Development</option>
+              <option value="Databases">Databases</option>
+              <option value="Cloud & DevOps">Cloud & DevOps</option>
+              <option value="CS Fundamentals">CS Fundamentals</option>
+              <option value="Tools">Tools</option>
+            </select>
+          </div>
+          <div class="mb-3">
+            <label class="form-label">Proficiency: <span id="editProfVal">80</span>%</label>
+            <input type="range" name="proficiency" id="editSkillProf" class="form-range" min="10" max="100" step="5"
+                   oninput="document.getElementById('editProfVal').textContent=this.value" />
+          </div>
+          <div class="mb-0">
+            <label class="form-label">Order</label>
+            <input type="number" name="order" id="editSkillOrder" class="form-control" min="0" />
+          </div>
+        </div>
+        <div class="modal-footer" style="border-top:1px solid #E2E8F0;padding:14px 22px;gap:8px;">
+          <button type="button" class="btn btn-outline-primary btn-sm" data-bs-dismiss="modal">Cancel</button>
+          <button type="submit" class="btn btn-primary btn-sm"><i class="fas fa-save me-1"></i>Save</button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+
+{% endblock %}
+
+{% block scripts %}
+<script>
+function openEditSkill(id, name, cat, prof, order) {
+  document.getElementById('editSkillForm').action = `/admin/skills/edit/${id}`;
+  document.getElementById('editSkillName').value = name;
+  document.getElementById('editSkillCat').value = cat;
+  document.getElementById('editSkillProf').value = prof;
+  document.getElementById('editProfVal').textContent = prof;
+  document.getElementById('editSkillOrder').value = order;
+  new bootstrap.Modal(document.getElementById('editSkillModal')).show();
+}
+</script>
+{% endblock %}

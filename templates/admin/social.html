@@ -1,0 +1,138 @@
+{% extends "admin/base.html" %}
+{% block title %}Social Links{% endblock %}
+{% block page_title %}Social Links{% endblock %}
+{% block page_subtitle %}Manage your social media profiles and external links{% endblock %}
+
+{% block content %}
+<div class="row g-4">
+
+  <!-- Add Link Form -->
+  <div class="col-lg-4">
+    <div class="admin-card" style="position:sticky;top:80px;">
+      <div class="admin-card-header">
+        <h6><i class="fas fa-plus me-2" style="color:#4F46E5;"></i>Add Social Link</h6>
+      </div>
+      <div class="admin-card-body">
+        <form method="POST">
+          <input type="hidden" name="action" value="add" />
+          <div class="mb-3">
+            <label class="form-label">Platform Name *</label>
+            <input type="text" name="platform" class="form-control"
+                   placeholder="e.g. LinkedIn" required />
+          </div>
+          <div class="mb-3">
+            <label class="form-label">Profile URL *</label>
+            <input type="url" name="url" class="form-control"
+                   placeholder="https://linkedin.com/in/yourprofile" required />
+          </div>
+          <div class="mb-3">
+            <label class="form-label">FontAwesome Icon Class *</label>
+            <input type="text" name="icon" class="form-control"
+                   value="fab fa-link" placeholder="e.g. fab fa-linkedin" required />
+            <small style="color:#94A3B8;font-size:0.72rem;">
+              Common: fab fa-linkedin · fab fa-github · fab fa-twitter ·
+              fab fa-instagram · fab fa-youtube · fab fa-facebook
+            </small>
+          </div>
+          <div class="mb-3">
+            <label class="form-label">Display Order</label>
+            <input type="number" name="order" class="form-control" value="0" min="0" />
+          </div>
+          <button type="submit" class="btn btn-primary w-100">
+            <i class="fas fa-plus me-2"></i>Add Link
+          </button>
+        </form>
+      </div>
+    </div>
+  </div>
+
+  <!-- Links List -->
+  <div class="col-lg-8">
+    <div class="admin-card">
+      <div class="admin-card-header">
+        <h6><i class="fas fa-share-nodes me-2" style="color:#06B6D4;"></i>All Social Links
+          <span style="background:#ECFEFF;color:#0891B2;padding:2px 10px;border-radius:20px;font-size:0.72rem;margin-left:8px;font-weight:700;">{{ links|length }}</span>
+        </h6>
+      </div>
+      <div class="admin-card-body p-0">
+        {% if links %}
+        {% for link in links %}
+        <div style="display:flex;align-items:center;padding:14px 20px;border-bottom:1px solid #F8FAFC;gap:14px;">
+          <!-- Icon Preview -->
+          <div style="width:42px;height:42px;min-width:42px;background:#EEF2FF;color:#4F46E5;
+                      border-radius:10px;display:flex;align-items:center;justify-content:center;font-size:1.1rem;">
+            <i class="{{ link.icon }}"></i>
+          </div>
+          <!-- Info -->
+          <div style="flex:1;min-width:0;">
+            <div style="font-weight:700;font-size:0.88rem;color:#0F172A;">{{ link.platform }}</div>
+            <a href="{{ link.url }}" target="_blank"
+               style="color:#4F46E5;font-size:0.75rem;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;display:block;max-width:320px;">
+              {{ link.url }}
+            </a>
+            <div style="font-size:0.7rem;color:#94A3B8;margin-top:2px;font-family:monospace;">{{ link.icon }}</div>
+          </div>
+          <!-- Order -->
+          <div style="text-align:center;min-width:50px;">
+            <div style="font-size:0.68rem;color:#94A3B8;text-transform:uppercase;letter-spacing:0.06em;">Order</div>
+            <div style="font-weight:700;color:#475569;">{{ link.order }}</div>
+          </div>
+          <!-- Status -->
+          <div>
+            {% if link.is_active %}
+            <span class="badge-success">Active</span>
+            {% else %}
+            <span style="background:#F1F5F9;color:#94A3B8;padding:3px 10px;border-radius:20px;font-size:0.72rem;">Hidden</span>
+            {% endif %}
+          </div>
+          <!-- Delete -->
+          <div>
+            <form method="POST" style="display:inline;"
+                  onsubmit="return confirm('Remove {{ link.platform }} link?');">
+              <input type="hidden" name="action" value="delete" />
+              <input type="hidden" name="id" value="{{ link.id }}" />
+              <button type="submit" class="delete-btn"><i class="fas fa-trash"></i></button>
+            </form>
+          </div>
+        </div>
+        {% endfor %}
+        {% else %}
+        <div class="text-center py-5" style="color:#94A3B8;">
+          <i class="fas fa-share-nodes fa-2x mb-3 d-block"></i>
+          <p style="font-size:0.88rem;">No social links added yet.</p>
+        </div>
+        {% endif %}
+      </div>
+    </div>
+
+    <!-- Icon Reference -->
+    <div class="admin-card mt-4">
+      <div class="admin-card-header">
+        <h6><i class="fas fa-icons me-2" style="color:#7C3AED;"></i>Common Icon Classes</h6>
+      </div>
+      <div class="admin-card-body">
+        <div style="display:flex;flex-wrap:wrap;gap:10px;">
+          {% set icons = [
+            ('fab fa-linkedin','LinkedIn'), ('fab fa-github','GitHub'),
+            ('fab fa-twitter','Twitter'), ('fab fa-x-twitter','X (Twitter)'),
+            ('fab fa-instagram','Instagram'), ('fab fa-youtube','YouTube'),
+            ('fab fa-facebook','Facebook'), ('fab fa-medium','Medium'),
+            ('fab fa-dev','Dev.to'), ('fas fa-globe','Website'),
+          ] %}
+          {% for cls, name in icons %}
+          <div style="display:flex;align-items:center;gap:7px;background:#F8FAFC;padding:7px 12px;border-radius:8px;border:1px solid #E2E8F0;cursor:pointer;"
+               onclick="navigator.clipboard.writeText('{{ cls }}');this.style.borderColor='#4F46E5';" title="Click to copy">
+            <i class="{{ cls }}" style="color:#4F46E5;font-size:0.95rem;"></i>
+            <span style="font-size:0.72rem;color:#475569;font-weight:500;">{{ name }}</span>
+          </div>
+          {% endfor %}
+        </div>
+        <p style="font-size:0.72rem;color:#94A3B8;margin-top:10px;margin-bottom:0;">
+          <i class="fas fa-info-circle me-1"></i>Click any icon card to copy its class to clipboard.
+        </p>
+      </div>
+    </div>
+
+  </div>
+</div>
+{% endblock %}

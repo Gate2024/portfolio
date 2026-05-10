@@ -1,0 +1,47 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>404 – Page Not Found</title>
+  <link href="https://fonts.googleapis.com/css2?family=Syne:wght@700;800&family=DM+Sans:wght@400;500&display=swap" rel="stylesheet" />
+  <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css" rel="stylesheet" />
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: 'DM Sans', sans-serif;
+      min-height: 100vh;
+      background: linear-gradient(160deg, #EEF2FF 0%, #F0F9FF 50%, #F5F3FF 100%);
+      display: flex; align-items: center; justify-content: center;
+      text-align: center; padding: 24px;
+    }
+    .err-code {
+      font-family: 'Syne', sans-serif; font-size: clamp(6rem, 20vw, 10rem); font-weight: 800;
+      background: linear-gradient(135deg, #4F46E5, #7C3AED);
+      -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text;
+      line-height: 1; margin-bottom: 8px;
+    }
+    h2 { font-family: 'Syne', sans-serif; font-size: 1.6rem; font-weight: 700; color: #0F172A; margin-bottom: 12px; }
+    p { color: #64748B; font-size: 1rem; max-width: 380px; margin: 0 auto 32px; line-height: 1.7; }
+    .btn {
+      display: inline-flex; align-items: center; gap: 8px;
+      background: linear-gradient(135deg, #4F46E5, #7C3AED);
+      color: #fff; padding: 13px 28px; border-radius: 50px;
+      font-weight: 600; font-size: 0.9rem; text-decoration: none;
+      box-shadow: 0 6px 20px rgba(79,70,229,0.35);
+      transition: all 0.25s ease;
+    }
+    .btn:hover { transform: translateY(-2px); box-shadow: 0 10px 30px rgba(79,70,229,0.45); }
+    .icon-wrap { font-size: 3rem; margin-bottom: 20px; }
+  </style>
+</head>
+<body>
+  <div>
+    <div class="icon-wrap">🔭</div>
+    <div class="err-code">404</div>
+    <h2>Page Not Found</h2>
+    <p>Oops! The page you're looking for seems to have drifted into the digital void. Let's get you back on track.</p>
+    <a href="/" class="btn"><i class="fas fa-home"></i> Back to Portfolio</a>
+  </div>
+</body>
+</html>

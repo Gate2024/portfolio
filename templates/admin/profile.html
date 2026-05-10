@@ -1,0 +1,127 @@
+{% extends "admin/base.html" %}
+{% block title %}Edit Profile{% endblock %}
+{% block page_title %}Profile Settings{% endblock %}
+{% block page_subtitle %}Update your personal information and portfolio details{% endblock %}
+
+{% block content %}
+<form method="POST" enctype="multipart/form-data">
+
+  <div class="row g-4">
+
+    <!-- Left: Photo + Stats -->
+    <div class="col-lg-4">
+
+      <div class="admin-card mb-4">
+        <div class="admin-card-header">
+          <h6><i class="fas fa-image me-2" style="color:#4F46E5;"></i>Profile Photo</h6>
+        </div>
+        <div class="admin-card-body text-center">
+          <div style="width:120px;height:120px;border-radius:50%;overflow:hidden;background:#EEF2FF;margin:0 auto 16px;border:3px solid #E2E8F0;display:flex;align-items:center;justify-content:center;">
+            {% if profile.profile_image %}
+              <img src="{{ url_for('static', filename=profile.profile_image) }}" style="width:100%;height:100%;object-fit:cover;" />
+            {% else %}
+              <i class="fas fa-user" style="font-size:2.5rem;color:#818CF8;"></i>
+            {% endif %}
+          </div>
+          <div class="mb-0">
+            <label class="form-label">Upload New Photo</label>
+            <input type="file" name="profile_image" class="form-control" accept="image/*" />
+            <small style="color:#94A3B8;font-size:0.72rem;display:block;margin-top:5px;">JPG, PNG, WEBP · Max 5 MB</small>
+          </div>
+        </div>
+      </div>
+
+      <div class="admin-card">
+        <div class="admin-card-header">
+          <h6><i class="fas fa-chart-bar me-2" style="color:#10B981;"></i>Counter Stats</h6>
+        </div>
+        <div class="admin-card-body">
+          <div class="mb-3">
+            <label class="form-label">Projects Count</label>
+            <input type="number" name="projects_count" class="form-control" value="{{ profile.projects_count }}" min="0" />
+          </div>
+          <div class="mb-3">
+            <label class="form-label">Certifications Count</label>
+            <input type="number" name="certifications_count" class="form-control" value="{{ profile.certifications_count }}" min="0" />
+          </div>
+          <div class="mb-3">
+            <label class="form-label">Technologies Count</label>
+            <input type="number" name="technologies_count" class="form-control" value="{{ profile.technologies_count }}" min="0" />
+          </div>
+          <div class="mb-0">
+            <label class="form-label">Experience (Months)</label>
+            <input type="number" name="experience_months" class="form-control" value="{{ profile.experience_months }}" min="0" />
+          </div>
+        </div>
+      </div>
+
+    </div>
+
+    <!-- Right: Main Info -->
+    <div class="col-lg-8">
+
+      <div class="admin-card mb-4">
+        <div class="admin-card-header">
+          <h6><i class="fas fa-user-circle me-2" style="color:#4F46E5;"></i>Personal Information</h6>
+        </div>
+        <div class="admin-card-body">
+          <div class="row g-3">
+            <div class="col-sm-6">
+              <label class="form-label">Full Name</label>
+              <input type="text" name="full_name" class="form-control" value="{{ profile.full_name }}" required />
+            </div>
+            <div class="col-sm-6">
+              <label class="form-label">Email Address</label>
+              <input type="email" name="email" class="form-control" value="{{ profile.email }}" />
+            </div>
+            <div class="col-sm-6">
+              <label class="form-label">Phone Number</label>
+              <input type="text" name="phone" class="form-control" value="{{ profile.phone }}" />
+            </div>
+            <div class="col-sm-6">
+              <label class="form-label">Location</label>
+              <input type="text" name="location" class="form-control" value="{{ profile.location }}" />
+            </div>
+            <div class="col-12">
+              <label class="form-label">Tagline / Role</label>
+              <input type="text" name="tagline" class="form-control" value="{{ profile.tagline }}" />
+              <small style="color:#94A3B8;font-size:0.72rem;">Shown below your name in hero section</small>
+            </div>
+            <div class="col-12">
+              <label class="form-label">Resume / CV URL</label>
+              <input type="url" name="resume_url" class="form-control" value="{{ profile.resume_url }}" placeholder="https://drive.google.com/..." />
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="admin-card mb-4">
+        <div class="admin-card-header">
+          <h6><i class="fas fa-align-left me-2" style="color:#06B6D4;"></i>Bio & Career Objective</h6>
+        </div>
+        <div class="admin-card-body">
+          <div class="mb-3">
+            <label class="form-label">Professional Bio</label>
+            <textarea name="bio" class="form-control" rows="5" placeholder="Write a compelling professional bio...">{{ profile.bio }}</textarea>
+          </div>
+          <div class="mb-0">
+            <label class="form-label">Career Objective</label>
+            <textarea name="career_obj" class="form-control" rows="3" placeholder="Your career objective...">{{ profile.career_obj }}</textarea>
+          </div>
+        </div>
+      </div>
+
+      <div class="d-flex gap-3">
+        <button type="submit" class="btn btn-primary px-4">
+          <i class="fas fa-save me-2"></i>Save Changes
+        </button>
+        <a href="{{ url_for('admin_dashboard') }}" class="btn btn-outline-primary px-4">
+          Cancel
+        </a>
+      </div>
+
+    </div>
+  </div>
+
+</form>
+{% endblock %}

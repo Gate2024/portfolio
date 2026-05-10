@@ -1,0 +1,126 @@
+{% extends "admin/base.html" %}
+{% block title %}Edit Research Paper{% endblock %}
+{% block page_title %}Edit Research Paper{% endblock %}
+{% block page_subtitle %}Update your published research details{% endblock %}
+
+{% block content %}
+<form method="POST" action="{{ url_for('admin_edit_research', rid=paper.id) }}">
+  <div class="row g-4">
+
+    <!-- Main form -->
+    <div class="col-lg-8">
+      <div class="admin-card mb-4">
+        <div class="admin-card-header">
+          <h6><i class="fas fa-file-alt me-2" style="color:#4F46E5;"></i>Paper Details</h6>
+        </div>
+        <div class="admin-card-body">
+          <div class="row g-3">
+
+            <div class="col-12">
+              <label class="form-label">Paper Title *</label>
+              <input type="text" name="title" class="form-control"
+                     value="{{ paper.title }}" required
+                     placeholder="Full title of the research paper" />
+            </div>
+
+            <div class="col-sm-6">
+              <label class="form-label">Journal / Conference *</label>
+              <input type="text" name="journal" class="form-control"
+                     value="{{ paper.journal or '' }}"
+                     placeholder="e.g. IJCRT, IEEE, Springer" />
+            </div>
+
+            <div class="col-sm-6">
+              <label class="form-label">Publication Date</label>
+              <input type="text" name="pub_date" class="form-control"
+                     value="{{ paper.pub_date or '' }}"
+                     placeholder="e.g. March 2024" />
+            </div>
+
+            <div class="col-12">
+              <label class="form-label">Authors</label>
+              <input type="text" name="authors" class="form-control"
+                     value="{{ paper.authors or '' }}"
+                     placeholder="e.g. Narayan Kishor Adhude, Co-Author Name" />
+            </div>
+
+            <div class="col-12">
+              <label class="form-label">Abstract</label>
+              <textarea name="abstract" class="form-control" rows="6"
+                        placeholder="Full abstract of the research paper…">{{ paper.abstract or '' }}</textarea>
+            </div>
+
+            <div class="col-12">
+              <label class="form-label">Keywords</label>
+              <input type="text" name="keywords" class="form-control"
+                     value="{{ paper.keywords or '' }}"
+                     placeholder="CNN, Deep Learning, TensorFlow, OpenCV (comma-separated)" />
+              <small style="color:#94A3B8;font-size:0.72rem;">
+                Separate with commas — displayed as tags on the portfolio.
+              </small>
+            </div>
+
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Side: URL + Order + Actions -->
+    <div class="col-lg-4">
+
+      <div class="admin-card mb-4">
+        <div class="admin-card-header">
+          <h6><i class="fas fa-link me-2" style="color:#06B6D4;"></i>Paper Link</h6>
+        </div>
+        <div class="admin-card-body">
+          <div class="mb-3">
+            <label class="form-label">Published Paper URL</label>
+            <input type="url" name="paper_url" class="form-control"
+                   value="{{ paper.paper_url or '' }}"
+                   placeholder="https://drive.google.com/… or https://ijcrt.org/…" />
+            <small style="color:#94A3B8;font-size:0.72rem;">
+              Google Drive link, journal page, or any public URL.
+            </small>
+          </div>
+          {% if paper.paper_url %}
+          <a href="{{ paper.paper_url }}" target="_blank"
+             class="btn btn-outline-primary btn-sm w-100 mt-1">
+            <i class="fas fa-external-link-alt me-1"></i>Preview Current Link
+          </a>
+          {% endif %}
+        </div>
+      </div>
+
+      <div class="admin-card mb-4">
+        <div class="admin-card-header">
+          <h6><i class="fas fa-sort me-2" style="color:#F59E0B;"></i>Display Order</h6>
+        </div>
+        <div class="admin-card-body">
+          <label class="form-label">Order</label>
+          <input type="number" name="order" class="form-control"
+                 value="{{ paper.order or 0 }}" min="0" />
+          <small style="color:#94A3B8;font-size:0.72rem;">
+            Lower number = shown first on portfolio.
+          </small>
+        </div>
+      </div>
+
+      <div class="d-grid gap-2">
+        <button type="submit" class="btn btn-primary">
+          <i class="fas fa-save me-2"></i>Update Paper
+        </button>
+        <a href="{{ url_for('admin_research') }}" class="btn btn-outline-primary">
+          <i class="fas fa-arrow-left me-2"></i>Back to Research
+        </a>
+        <form method="POST" action="{{ url_for('admin_delete_research', rid=paper.id) }}"
+              onsubmit="return confirm('Permanently delete this paper?');">
+          <button type="submit" class="btn btn-danger w-100">
+            <i class="fas fa-trash me-2"></i>Delete Paper
+          </button>
+        </form>
+      </div>
+
+    </div>
+  </div>
+</form>
+{% endblock %}

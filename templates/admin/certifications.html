@@ -1,0 +1,132 @@
+{% extends "admin/base.html" %}
+{% block title %}Certifications{% endblock %}
+{% block page_title %}Certifications{% endblock %}
+{% block page_subtitle %}Manage your professional credentials and certificates{% endblock %}
+
+{% block content %}
+<div class="row g-4">
+
+  <!-- Add Certification Form -->
+  <div class="col-lg-4">
+    <div class="admin-card" style="position:sticky;top:80px;">
+      <div class="admin-card-header">
+        <h6><i class="fas fa-plus me-2" style="color:#4F46E5;"></i>Add Certification</h6>
+      </div>
+      <div class="admin-card-body">
+        <form method="POST" action="{{ url_for('admin_add_certification') }}">
+          <div class="mb-3">
+            <label class="form-label">Certificate Title *</label>
+            <input type="text" name="title" class="form-control"
+                   placeholder="e.g. Python for Data Science" required />
+          </div>
+          <div class="mb-3">
+            <label class="form-label">Issuing Organisation *</label>
+            <input type="text" name="issuer" class="form-control"
+                   placeholder="e.g. IIT Kanpur (NPTEL)" required />
+          </div>
+          <div class="mb-3">
+            <label class="form-label">Category</label>
+            <select name="category" class="form-select">
+              <option value="Technical">Technical</option>
+              <option value="AI/ML">AI/ML</option>
+              <option value="Cloud">Cloud</option>
+              <option value="Data Science">Data Science</option>
+              <option value="Soft Skills">Soft Skills</option>
+              <option value="Other">Other</option>
+            </select>
+          </div>
+          <div class="mb-3">
+            <label class="form-label">Certificate URL</label>
+            <input type="url" name="cert_url" class="form-control"
+                   placeholder="https://drive.google.com/…" />
+          </div>
+          <div class="mb-3">
+            <label class="form-label">Issue Date</label>
+            <input type="text" name="issue_date" class="form-control"
+                   placeholder="e.g. Jan 2024" />
+          </div>
+          <div class="mb-3">
+            <label class="form-label">Credential ID</label>
+            <input type="text" name="credential_id" class="form-control"
+                   placeholder="Optional credential ID" />
+          </div>
+          <div class="mb-3">
+            <label class="form-label">Display Order</label>
+            <input type="number" name="order" class="form-control" value="0" min="0" />
+          </div>
+          <button type="submit" class="btn btn-primary w-100">
+            <i class="fas fa-plus me-2"></i>Add Certification
+          </button>
+        </form>
+      </div>
+    </div>
+  </div>
+
+  <!-- Certifications List -->
+  <div class="col-lg-8">
+    <div class="admin-card">
+      <div class="admin-card-header">
+        <h6><i class="fas fa-certificate me-2" style="color:#10B981;"></i>All Certifications
+          <span style="background:#ECFDF5;color:#059669;padding:2px 10px;border-radius:20px;font-size:0.72rem;margin-left:8px;font-weight:700;">{{ certs|length }}</span>
+        </h6>
+      </div>
+      <div class="admin-card-body p-0">
+        {% if certs %}
+        <div style="overflow-x:auto;">
+          <table class="admin-table">
+            <thead>
+              <tr>
+                <th>#</th>
+                <th>Certificate</th>
+                <th>Issuer</th>
+                <th>Category</th>
+                <th>Link</th>
+                <th style="text-align:right;">Actions</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for c in certs %}
+              <tr>
+                <td style="color:#94A3B8;font-weight:600;">{{ c.order or loop.index }}</td>
+                <td>
+                  <div style="font-weight:600;font-size:0.85rem;color:#0F172A;max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">
+                    {{ c.title }}
+                  </div>
+                  {% if c.issue_date %}
+                  <div style="color:#94A3B8;font-size:0.72rem;">{{ c.issue_date }}</div>
+                  {% endif %}
+                </td>
+                <td style="font-size:0.82rem;color:#475569;">{{ c.issuer }}</td>
+                <td><span class="badge-primary">{{ c.category }}</span></td>
+                <td>
+                  {% if c.cert_url %}
+                  <a href="{{ c.cert_url }}" target="_blank" style="color:#4F46E5;font-size:0.8rem;">
+                    <i class="fas fa-external-link-alt"></i>
+                  </a>
+                  {% else %}
+                  <span style="color:#CBD5E1;">—</span>
+                  {% endif %}
+                </td>
+                <td style="text-align:right;">
+                  <form method="POST" action="{{ url_for('admin_delete_certification', cid=c.id) }}" style="display:inline;"
+                        onsubmit="return confirm('Delete «{{ c.title }}»?');">
+                    <button type="submit" class="delete-btn"><i class="fas fa-trash"></i></button>
+                  </form>
+                </td>
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+        {% else %}
+        <div class="text-center py-5" style="color:#94A3B8;">
+          <i class="fas fa-certificate fa-2x mb-3 d-block"></i>
+          <p style="font-size:0.88rem;">No certifications added yet.</p>
+        </div>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+
+</div>
+{% endblock %}
