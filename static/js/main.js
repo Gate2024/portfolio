@@ -129,12 +129,14 @@ window.addEventListener('load', () => {
 })();
 
 /* ── AOS Animations ──────────────────────────────────────────── */
-AOS.init({
-  duration: 800,
-  easing: 'ease-out-cubic',
-  once: true,
-  offset: 60,
-});
+if (typeof AOS !== 'undefined') {
+  AOS.init({
+    duration: 800,
+    easing: 'ease-out-cubic',
+    once: true,
+    offset: 60,
+  });
+}
 
 /* ── Typed.js ────────────────────────────────────────────────── */
 (function initTyped() {
@@ -158,37 +160,291 @@ AOS.init({
 
 /* ── Particles.js ────────────────────────────────────────────── */
 (function initParticles() {
-  if (typeof particlesJS === 'undefined' || !document.getElementById('particles-js')) return;
+  const container = document.getElementById('particles-js');
+  if (typeof particlesJS === 'undefined' || !container) return;
+  const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  const coarsePointer = window.matchMedia('(pointer: coarse)').matches;
   particlesJS('particles-js', {
     particles: {
-      number: { value: 55, density: { enable: true, value_area: 900 } },
+      number: { value: reducedMotion ? 35 : 55, density: { enable: true, value_area: 900 } },
       color:  { value: ['#4F46E5', '#06B6D4', '#7C3AED'] },
       shape:  { type: 'circle' },
-      opacity: { value: 0.3, random: true, anim: { enable: true, speed: 0.8, opacity_min: 0.05 } },
-      size:   { value: 3, random: true, anim: { enable: true, speed: 2, size_min: 0.5 } },
+      opacity: { value: 0.3, random: true, anim: { enable: !reducedMotion, speed: 0.8, opacity_min: 0.05 } },
+      size:   { value: 3, random: true, anim: { enable: !reducedMotion, speed: 2, size_min: 0.5 } },
       line_linked: {
         enable: true, distance: 150,
         color: '#818CF8', opacity: 0.15, width: 1,
       },
       move: {
-        enable: true, speed: 1.2, direction: 'none',
+        enable: true, speed: reducedMotion ? 0.25 : 1.2, direction: 'none',
         random: true, straight: false, out_mode: 'out', bounce: false,
       },
     },
     interactivity: {
       detect_on: 'canvas',
       events: {
-        onhover: { enable: true, mode: 'grab' },
-        onclick: { enable: true, mode: 'push' },
+        onhover: { enable: !coarsePointer, mode: 'grab' },
+        onclick: { enable: false, mode: 'push' },
         resize:  true,
       },
       modes: {
-        grab:  { distance: 140, line_linked: { opacity: 0.4 } },
-        push:  { particles_nb: 3 },
+        grab:  { distance: reducedMotion ? 110 : 140, line_linked: { opacity: reducedMotion ? 0.25 : 0.4 } },
       },
     },
     retina_detect: true,
   });
+
+  if (coarsePointer) return;
+
+  const pjs = window.pJSDom?.[window.pJSDom.length - 1]?.pJS;
+  const particleCanvas = pjs?.canvas?.el;
+  if (!pjs || !particleCanvas) return;
+
+  // A pointer-transparent overlay is used only for bounded ripple drawing.
+  const effectCanvas = document.createElement('canvas');
+  effectCanvas.setAttribute('aria-hidden', 'true');
+  effectCanvas.style.cssText = 'position:absolute;inset:0;width:100%;height:100%;z-index:1;pointer-events:none;';
+  container.appendChild(effectCanvas);
+  const effectContext = effectCanvas.getContext('2d');
+  if (!effectContext) return;
+
+  const hoverRadius = reducedMotion ? 105 : 145;
+  const grabRadius = reducedMotion ? 90 : 115;
+  const clusterRadius = reducedMotion ? 145 : 220;
+  const maxHoverDisplacement = reducedMotion ? 2 : 9;
+  const maxGrabDisplacement = reducedMotion ? 80 : Math.max(pjs.canvas.w || 320, pjs.canvas.h || 240);
+  const maxNeighborDisplacement = reducedMotion ? 8 : 42;
+  const particleStates = new Map();
+  const dragCluster = new Map();
+  const ripples = [];
+  const pointer = {
+    active: false,
+    dragging: false,
+    x: 0,
+    y: 0,
+    startX: 0,
+    startY: 0,
+    previousX: 0,
+    previousY: 0,
+    movementX: 0,
+    movementY: 0,
+    grabbed: null,
+    grabOffsetX: 0,
+    grabOffsetY: 0,
+  };
+
+  function canvasPoint(event) {
+    const rect = particleCanvas.getBoundingClientRect();
+    const width = pjs.canvas.w || rect.width;
+    const height = pjs.canvas.h || rect.height;
+    return {
+      x: (event.clientX - rect.left) * (width / rect.width),
+      y: (event.clientY - rect.top) * (height / rect.height),
+    };
+  }
+
+  function resizeEffectCanvas() {
+    const rect = container.getBoundingClientRect();
+    const ratio = window.devicePixelRatio || 1;
+    effectCanvas.width = Math.max(1, Math.round(rect.width * ratio));
+    effectCanvas.height = Math.max(1, Math.round(rect.height * ratio));
+    effectContext.setTransform(ratio, 0, 0, ratio, 0, 0);
+  }
+
+  function setPointer(event) {
+    const point = canvasPoint(event);
+    pointer.previousX = pointer.x;
+    pointer.previousY = pointer.y;
+    pointer.x = point.x;
+    pointer.y = point.y;
+    pointer.movementX += pointer.x - pointer.previousX;
+    pointer.movementY += pointer.y - pointer.previousY;
+    pointer.active = true;
+  }
+
+  function findGrabTarget() {
+    let target = null;
+    let nearestDistance = grabRadius;
+    pjs.particles.array.forEach(particle => {
+      const distance = Math.hypot(particle.x - pointer.x, particle.y - pointer.y);
+      if (distance <= nearestDistance) {
+        target = particle;
+        nearestDistance = distance;
+      }
+    });
+    return target;
+  }
+
+  function beginDrag() {
+    const target = findGrabTarget();
+    if (!target) return false;
+
+    pointer.grabbed = target;
+    pointer.grabOffsetX = pointer.x - target.x;
+    pointer.grabOffsetY = pointer.y - target.y;
+    dragCluster.clear();
+    pjs.particles.array.forEach(particle => {
+      const distance = Math.hypot(particle.x - target.x, particle.y - target.y);
+      if (distance > clusterRadius) return;
+      const weight = Math.pow(1 - distance / clusterRadius, 2);
+      const state = particleStates.get(particle) || { x: 0, y: 0, vx: 0, vy: 0, dragTargetX: 0, dragTargetY: 0 };
+      const spread = distance ? (reducedMotion ? 4 : 14) * (1 - distance / clusterRadius) : 0;
+      state.dragTargetX = distance ? ((particle.x - target.x) / distance) * spread : 0;
+      state.dragTargetY = distance ? ((particle.y - target.y) / distance) * spread : 0;
+      state.clusterWeight = weight;
+      particleStates.set(particle, state);
+      dragCluster.set(particle, weight);
+    });
+    return true;
+  }
+
+  function addClickResponse() {
+    if (reducedMotion) return;
+    ripples.push({ x: pointer.x, y: pointer.y, age: 0 });
+    if (ripples.length > 4) ripples.shift();
+
+    pjs.particles.array.forEach(particle => {
+      const dx = particle.x - pointer.x;
+      const dy = particle.y - pointer.y;
+      const distance = Math.hypot(dx, dy);
+      if (!distance || distance > hoverRadius * 1.15) return;
+      const state = particleStates.get(particle) || { x: 0, y: 0, vx: 0, vy: 0, dragTargetX: 0, dragTargetY: 0 };
+      const influence = 1 - distance / (hoverRadius * 1.15);
+      state.vx += (dx / distance) * influence * 2.4;
+      state.vy += (dy / distance) * influence * 2.4;
+      state.dragTargetX += (dx / distance) * influence * 8;
+      state.dragTargetY += (dy / distance) * influence * 8;
+      particleStates.set(particle, state);
+    });
+  }
+
+  function drawRipples() {
+    const rect = container.getBoundingClientRect();
+    effectContext.clearRect(0, 0, rect.width, rect.height);
+    const dark = document.documentElement.getAttribute('data-theme') === 'dark';
+    const color = dark ? '#A5B4FC' : '#4F46E5';
+
+    for (let i = ripples.length - 1; i >= 0; i -= 1) {
+      const ripple = ripples[i];
+      ripple.age += reducedMotion ? 0.08 : 0.035;
+      if (ripple.age >= 1) {
+        ripples.splice(i, 1);
+        continue;
+      }
+      const progress = ripple.age;
+      const radiusNow = 10 + progress * (reducedMotion ? 45 : 105);
+      const alpha = (1 - progress) * (dark ? 0.55 : 0.4);
+      effectContext.beginPath();
+      effectContext.arc(ripple.x, ripple.y, radiusNow, 0, Math.PI * 2);
+      effectContext.strokeStyle = color;
+      effectContext.globalAlpha = alpha;
+      effectContext.lineWidth = 2;
+      effectContext.stroke();
+      effectContext.beginPath();
+      effectContext.arc(ripple.x, ripple.y, Math.max(2, radiusNow * 0.12), 0, Math.PI * 2);
+      effectContext.fillStyle = dark ? '#67E8F9' : '#06B6D4';
+      effectContext.fill();
+    }
+    effectContext.globalAlpha = 1;
+  }
+
+  function animateInteraction() {
+    const particles = pjs.particles.array;
+    const movementX = pointer.movementX;
+    const movementY = pointer.movementY;
+    pointer.movementX = 0;
+    pointer.movementY = 0;
+
+    particles.forEach(particle => {
+      const state = particleStates.get(particle) || { x: 0, y: 0, vx: 0, vy: 0, dragTargetX: 0, dragTargetY: 0 };
+      particle.x -= state.x;
+      particle.y -= state.y;
+
+      const dx = particle.x - pointer.x;
+      const dy = particle.y - pointer.y;
+      const distance = Math.hypot(dx, dy);
+      const influence = pointer.active && distance < hoverRadius ? 1 - distance / hoverRadius : 0;
+      const hoverX = influence && distance ? (dx / distance) * maxHoverDisplacement * influence : 0;
+      const hoverY = influence && distance ? (dy / distance) * maxHoverDisplacement * influence : 0;
+
+      if (pointer.dragging && dragCluster.has(particle)) {
+        const weight = dragCluster.get(particle);
+        if (particle === pointer.grabbed) {
+          const desiredX = Math.max(0, Math.min(pjs.canvas.w, pointer.x - pointer.grabOffsetX));
+          const desiredY = Math.max(0, Math.min(pjs.canvas.h, pointer.y - pointer.grabOffsetY));
+          state.dragTargetX = desiredX - particle.x;
+          state.dragTargetY = desiredY - particle.y;
+        } else {
+          state.dragTargetX += movementX * weight;
+          state.dragTargetY += movementY * weight;
+        }
+      } else if (!pointer.dragging) {
+        state.dragTargetX *= 0.9;
+        state.dragTargetY *= 0.9;
+      }
+
+      state.vx *= pointer.dragging ? 0.84 : 0.9;
+      state.vy *= pointer.dragging ? 0.84 : 0.9;
+      state.x += state.vx;
+      state.y += state.vy;
+      const maxOffset = particle === pointer.grabbed ? maxGrabDisplacement : maxNeighborDisplacement;
+      const targetX = Math.max(-maxOffset, Math.min(maxOffset, hoverX + state.dragTargetX));
+      const targetY = Math.max(-maxOffset, Math.min(maxOffset, hoverY + state.dragTargetY));
+      state.x += (targetX - state.x) * (reducedMotion ? 0.2 : 0.28);
+      state.y += (targetY - state.y) * (reducedMotion ? 0.2 : 0.28);
+      state.x = Math.max(-maxOffset, Math.min(maxOffset, state.x));
+      state.y = Math.max(-maxOffset, Math.min(maxOffset, state.y));
+
+      particle.x += state.x;
+      particle.y += state.y;
+      if (Math.abs(state.x) < 0.01 && Math.abs(state.y) < 0.01 && Math.abs(state.dragTargetX) < 0.01 && Math.abs(state.dragTargetY) < 0.01 && !influence && !state.vx && !state.vy && !dragCluster.has(particle)) {
+        particleStates.delete(particle);
+      } else {
+        particleStates.set(particle, state);
+      }
+    });
+
+    drawRipples();
+    window.requestAnimationFrame(animateInteraction);
+  }
+
+  particleCanvas.addEventListener('pointerenter', event => setPointer(event));
+  particleCanvas.addEventListener('pointermove', event => setPointer(event));
+  particleCanvas.addEventListener('pointerleave', () => { if (!pointer.dragging) pointer.active = false; });
+  particleCanvas.addEventListener('pointerdown', event => {
+    if (event.button !== 0) return;
+    const point = canvasPoint(event);
+    pointer.x = point.x;
+    pointer.y = point.y;
+    pointer.startX = point.x;
+    pointer.startY = point.y;
+    pointer.previousX = point.x;
+    pointer.previousY = point.y;
+    pointer.movementX = 0;
+    pointer.movementY = 0;
+    pointer.active = beginDrag();
+    pointer.dragging = pointer.active;
+    if (!pointer.dragging) return;
+    particleCanvas.setPointerCapture?.(event.pointerId);
+  });
+  particleCanvas.addEventListener('pointerup', event => {
+    if (!pointer.dragging) return;
+    const moved = Math.hypot(pointer.x - pointer.startX, pointer.y - pointer.startY);
+    pointer.dragging = false;
+    if (moved < 6) addClickResponse();
+    pointer.grabbed = null;
+    dragCluster.clear();
+    particleCanvas.releasePointerCapture?.(event.pointerId);
+  });
+  particleCanvas.addEventListener('pointercancel', () => {
+    pointer.dragging = false;
+    pointer.grabbed = null;
+    dragCluster.clear();
+    pointer.active = false;
+  });
+  window.addEventListener('resize', resizeEffectCanvas, { passive: true });
+  resizeEffectCanvas();
+  window.requestAnimationFrame(animateInteraction);
 })();
 
 /* ── Counter Animation ───────────────────────────────────────── */

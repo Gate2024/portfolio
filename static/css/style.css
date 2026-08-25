@@ -314,8 +314,9 @@ body:has(button:hover) #cursor { width: 16px; height: 16px; background: var(--pu
 }
 #particles-js {
   position: absolute; inset: 0;
-  z-index: 0; pointer-events: none;
+  z-index: 0; pointer-events: auto;
 }
+@media (pointer: coarse) { #particles-js { pointer-events: none; } }
 .hero-glow {
   position: absolute; border-radius: 50%; filter: blur(80px);
   opacity: 0.5; pointer-events: none; z-index: 0;
