@@ -2,6 +2,33 @@
    NARAYAN ADHUDE PORTFOLIO — MAIN JS
 ════════════════════════════════════════════════════════════════ */
 
+/* ── Theme Toggle ────────────────────────────────────────────── */
+(function initTheme() {
+  const root = document.documentElement;
+  const toggle = document.getElementById('themeToggle');
+  if (!toggle) return;
+
+  function updateToggle() {
+    const dark = root.getAttribute('data-theme') === 'dark';
+    const icon = toggle.querySelector('i');
+    const label = toggle.querySelector('.theme-toggle-label');
+    toggle.setAttribute('aria-pressed', String(dark));
+    toggle.setAttribute('aria-label', dark ? 'Switch to light mode' : 'Switch to dark mode');
+    toggle.setAttribute('title', dark ? 'Switch to light mode' : 'Switch to dark mode');
+    if (icon) icon.className = dark ? 'fas fa-sun' : 'fas fa-moon';
+    if (label) label.textContent = dark ? 'Day' : 'Night';
+  }
+
+  toggle.addEventListener('click', () => {
+    const dark = root.getAttribute('data-theme') === 'dark';
+    root.setAttribute('data-theme', dark ? 'light' : 'dark');
+    try { localStorage.setItem('portfolio-theme', dark ? 'light' : 'dark'); } catch (e) {}
+    updateToggle();
+  });
+
+  updateToggle();
+})();
+
 /* ── Loader ──────────────────────────────────────────────────── */
 window.addEventListener('load', () => {
   setTimeout(() => {

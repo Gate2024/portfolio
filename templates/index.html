@@ -20,6 +20,17 @@
   <!-- FontAwesome 6 -->
   <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css" rel="stylesheet" />
 
+  <!-- Apply the saved theme before the page is painted -->
+  <script>
+    (function () {
+      try {
+        if (localStorage.getItem('portfolio-theme') === 'dark') {
+          document.documentElement.setAttribute('data-theme', 'dark');
+        }
+      } catch (e) {}
+    })();
+  </script>
+
   <!-- Main CSS -->
   <link href="{{ url_for('static', filename='css/style.css') }}" rel="stylesheet" />
 </head>
@@ -62,6 +73,12 @@
         <li class="nav-item"><a class="nav-link" href="#achievements">Achievements</a></li>
         <li class="nav-item"><a class="nav-link" href="#research">Research</a></li>
         <li class="nav-item"><a class="nav-link" href="#contact">Contact</a></li>
+        <li class="nav-item ms-lg-2">
+          <button type="button" class="theme-toggle" id="themeToggle" aria-label="Switch to dark mode" aria-pressed="false" title="Switch to dark mode">
+            <i class="fas fa-moon" aria-hidden="true"></i>
+            <span class="theme-toggle-label">Night</span>
+          </button>
+        </li>
         <li class="nav-item ms-lg-2">
           <a class="btn btn-nav-cta" href="{{ profile.resume_url }}" target="_blank">
             <i class="fas fa-download me-1"></i> Resume
@@ -807,7 +824,7 @@
   </div>
   <div class="footer-bottom">
     <div class="container d-flex justify-content-between align-items-center flex-wrap gap-2">
-      <p>© 2025 Narayan Kishor Adhude. Built with <i class="fas fa-heart text-danger"></i> and Flask.</p>
+      <p>© 2026 All Rights Reserved by Narayan Kishor Adhude. </p>
       <a href="{{ url_for('admin_login') }}" class="footer-admin-link">
         <i class="fas fa-lock me-1"></i>Admin
       </a>
