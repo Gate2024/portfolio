@@ -495,6 +495,7 @@ def index():
         cert_categories=cert_categories,
         achievements=achievements,
         research=research,
+        current_year=datetime.utcnow().year,
     )
 
 

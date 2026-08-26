@@ -142,14 +142,11 @@ if (typeof AOS !== 'undefined') {
 (function initTyped() {
   const el = document.getElementById('typed-text');
   if (!el || typeof Typed === 'undefined') return;
+  const tagline = (el.dataset.tagline || '').trim();
+  if (!tagline) return;
+  const roles = tagline.split(/\s*\|\s*/).filter(Boolean);
   new Typed('#typed-text', {
-    strings: [
-      'AI/ML Engineer',
-      'Full Stack Developer',
-      'Python Developer',
-      'Software Engineer',
-      'Data Science Enthusiast',
-    ],
+    strings: roles,
     typeSpeed: 60,
     backSpeed: 35,
     backDelay: 1800,

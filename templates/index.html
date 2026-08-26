@@ -3,12 +3,13 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <meta name="description" content="Narayan Kishor Adhude – Full Stack Developer, AI/ML Engineer, Python Developer. Portfolio showcasing projects, skills, and achievements." />
-  <meta name="keywords" content="Narayan Adhude, AI ML Engineer, Full Stack Developer, Python Developer, Flask, TensorFlow, Portfolio" />
-  <meta name="author" content="Narayan Kishor Adhude" />
-  <meta property="og:title" content="Narayan Adhude – AI/ML Engineer & Full Stack Developer" />
+  <meta name="description" content="{{ profile.bio }}" />
+  <meta name="keywords" content="{{ profile.full_name }}, {{ profile.tagline }}, Portfolio" />
+  <meta name="author" content="{{ profile.full_name }}" />
+  <meta property="og:title" content="{{ profile.full_name }} – {{ profile.tagline }}" />
+  <meta property="og:description" content="{{ profile.bio }}" />
   <meta property="og:type" content="website" />
-  <title>Narayan Adhude | AI/ML Engineer & Full Stack Developer</title>
+  <title>{{ profile.full_name }} | {{ profile.tagline }}</title>
 
   <!-- Google Fonts -->
   <link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,500;1,9..40,300&display=swap" rel="stylesheet" />
@@ -36,10 +37,19 @@
 </head>
 <body>
 
+{% set profile_name_parts = (profile.full_name or '').split() %}
+{% if profile_name_parts|length == 0 %}
+  {% set profile_initials = '?' %}
+{% elif profile_name_parts|length == 1 %}
+  {% set profile_initials = profile_name_parts[0][0]|upper %}
+{% else %}
+  {% set profile_initials = (profile_name_parts[0][0] ~ profile_name_parts[-1][0])|upper %}
+{% endif %}
+
 <!-- ═══════════════════════════════════════ LOADING SCREEN ══════ -->
 <div id="loader">
   <div class="loader-inner">
-    <div class="loader-logo">Narayan Adhude</div>
+    <div class="loader-logo">{{ profile.full_name }}</div>
     <div class="loader-bar"><div class="loader-fill"></div></div>
     <p class="loader-text">Initializing Portfolio…</p>
   </div>
@@ -56,8 +66,8 @@
 <nav id="navbar" class="navbar navbar-expand-lg fixed-top">
   <div class="container">
     <a class="navbar-brand" href="#hero">
-      <span class="brand-logo">NA</span>
-      <span class="brand-name">Narayan Adhude</span>
+      <span class="brand-logo">{{ profile_initials }}</span>
+      <span class="brand-name">{{ profile.full_name }}</span>
     </a>
     <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navMenu">
       <span class="toggler-icon"><i class="fas fa-bars"></i></span>
@@ -107,7 +117,7 @@
         <h1 class="hero-name">{{ profile.full_name }}</h1>
         <div class="hero-role">
           <span class="role-prefix">I'm a </span>
-          <span id="typed-text"></span>
+          <span id="typed-text" data-tagline="{{ profile.tagline }}"></span>
         </div>
         <p class="hero-bio">{{ profile.bio[:200] }}…</p>
 
@@ -141,7 +151,7 @@
               <img src="{{ url_for('static', filename=profile.profile_image) }}" alt="{{ profile.full_name }}" />
             {% else %}
               <div class="avatar-placeholder">
-                <span class="avatar-initials">NA</span>
+                <span class="avatar-initials">{{ profile_initials }}</span>
                 <p class="avatar-hint">Add photo in Admin</p>
               </div>
             {% endif %}
@@ -191,7 +201,7 @@
     <div class="section-header" data-aos="fade-up">
       <span class="section-tag">About Me</span>
       <h2 class="section-title">Who I Am</h2>
-      <p class="section-subtitle">Full Stack Developer(Python,.NET, Java) & AI/ML Enthusiast</p>
+      <p class="section-subtitle">{{ profile.tagline }}</p>
     </div>
 
     <div class="row align-items-center g-5">
@@ -214,7 +224,7 @@
 
       <div class="col-lg-7" data-aos="fade-left">
         <div class="about-content">
-          <h3 class="about-subtitle">Full Stack Developer(Python, .NET, Java), AI/ML Enthusiast</h3>
+          <h3 class="about-subtitle">{{ profile.tagline }}</h3>
           <p class="about-text">{{ profile.bio }}</p>
 
           <div class="about-objective-box">
@@ -733,7 +743,7 @@
               <div class="col-sm-6">
                 <div class="form-group">
                   <label>Your Name *</label>
-                  <input type="text" name="name" class="form-input" placeholder="Narayan Adhude" required />
+                  <input type="text" name="name" class="form-input" placeholder="Your name" required />
                 </div>
               </div>
               <div class="col-sm-6">
@@ -776,10 +786,10 @@
       <div class="row g-4">
         <div class="col-lg-4">
           <div class="footer-brand">
-            <span class="footer-logo">NA</span>
-            <h5>Narayan Kishor Adhude</h5>
+            <span class="footer-logo">{{ profile_initials }}</span>
+            <h5>{{ profile.full_name }}</h5>
           </div>
-          <p class="footer-bio">AI/ML Engineer · Full Stack Developer · Python Developer. Building the future with code, one commit at a time.</p>
+          <p class="footer-bio">{{ profile.bio[:200] }}{% if profile.bio|length > 200 %}…{% endif %}</p>
           <div class="footer-socials">
             {% for s in social_links %}
             <a href="{{ s.url }}" target="_blank" title="{{ s.platform }}"><i class="{{ s.icon }}"></i></a>
@@ -824,7 +834,7 @@
   </div>
   <div class="footer-bottom">
     <div class="container d-flex justify-content-between align-items-center flex-wrap gap-2">
-      <p>© 2026 All Rights Reserved by Narayan Kishor Adhude. </p>
+      <p>© {{ current_year }} All Rights Reserved by {{ profile.full_name }}. </p>
       <a href="{{ url_for('admin_login') }}" class="footer-admin-link">
         <i class="fas fa-lock me-1"></i>Admin
       </a>
