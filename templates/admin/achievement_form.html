@@ -1,0 +1,68 @@
+{% extends "admin/base.html" %}
+{% block title %}Edit Achievement{% endblock %}
+{% block page_title %}Edit Achievement{% endblock %}
+{% block page_subtitle %}Update your milestone, leadership, or recognition{% endblock %}
+
+{% set submitted = form_data or {} %}
+{% set selected_category = submitted.get('category', achievement.category or 'Leadership') %}
+
+{% block content %}
+<form method="POST">
+  <div class="row g-4">
+    <div class="col-lg-8">
+      <div class="admin-card mb-4">
+        <div class="admin-card-header">
+          <h6><i class="fas fa-trophy me-2" style="color:#F59E0B;"></i>Achievement Details</h6>
+        </div>
+        <div class="admin-card-body">
+          <div class="row g-3">
+            <div class="col-12">
+              <label class="form-label">Achievement Title *</label>
+              <input type="text" name="title" class="form-control"
+                     value="{{ submitted.get('title', achievement.title) }}" required />
+            </div>
+            <div class="col-12">
+              <label class="form-label">Description</label>
+              <textarea name="description" class="form-control" rows="4">{{ submitted.get('description', achievement.description or '') }}</textarea>
+            </div>
+            <div class="col-sm-6">
+              <label class="form-label">Year / Date</label>
+              <input type="text" name="date" class="form-control"
+                     value="{{ submitted.get('date', achievement.date or '') }}" />
+            </div>
+            <div class="col-sm-6">
+              <label class="form-label">Category</label>
+              <select name="category" class="form-select">
+                {% for category in ['Leadership', 'Academic', 'Research', 'Hackathon', 'Cultural', 'Events', 'Other'] %}
+                <option value="{{ category }}" {% if selected_category == category %}selected{% endif %}>{{ category }}</option>
+                {% endfor %}
+                {% if selected_category and selected_category not in ['Leadership', 'Academic', 'Research', 'Hackathon', 'Cultural', 'Events', 'Other'] %}
+                <option value="{{ selected_category }}" selected>{{ selected_category }}</option>
+                {% endif %}
+              </select>
+            </div>
+            <div class="col-12">
+              <label class="form-label">FontAwesome Icon Class</label>
+              <input type="text" name="icon" class="form-control"
+                     value="{{ submitted.get('icon', achievement.icon or 'fas fa-trophy') }}"
+                     placeholder="e.g. fas fa-crown" />
+            </div>
+            <div class="col-sm-6">
+              <label class="form-label">Display Order</label>
+              <input type="number" name="order" class="form-control" min="0"
+                     value="{{ submitted.get('order', achievement.order) }}" />
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="d-flex gap-3">
+        <button type="submit" class="btn btn-primary px-4">
+          <i class="fas fa-save me-2"></i>Update Achievement
+        </button>
+        <a href="{{ url_for('admin_achievements') }}" class="btn btn-outline-primary px-4">Cancel</a>
+      </div>
+    </div>
+  </div>
+</form>
+{% endblock %}

@@ -1,0 +1,86 @@
+{% extends "admin/base.html" %}
+{% block title %}Edit Experience{% endblock %}
+{% block page_title %}Edit Experience{% endblock %}
+{% block page_subtitle %}Update your professional work history{% endblock %}
+
+{% set submitted = form_data or {} %}
+{% set current_value = submitted.get('is_current') if form_data else experience.is_current %}
+
+{% block content %}
+<form method="POST">
+  <div class="row g-4">
+    <div class="col-lg-8">
+      <div class="admin-card mb-4">
+        <div class="admin-card-header">
+          <h6><i class="fas fa-briefcase me-2" style="color:#4F46E5;"></i>Experience Details</h6>
+        </div>
+        <div class="admin-card-body">
+          <div class="row g-3">
+            <div class="col-12">
+              <label class="form-label">Job Title *</label>
+              <input type="text" name="title" class="form-control"
+                     value="{{ submitted.get('title', experience.title) }}" required />
+            </div>
+            <div class="col-12">
+              <label class="form-label">Company / Organisation *</label>
+              <input type="text" name="company" class="form-control"
+                     value="{{ submitted.get('company', experience.company) }}" required />
+            </div>
+            <div class="col-12">
+              <label class="form-label">Location</label>
+              <input type="text" name="location" class="form-control"
+                     value="{{ submitted.get('location', experience.location or '') }}" />
+            </div>
+            <div class="col-sm-6">
+              <label class="form-label">Start Date</label>
+              <input type="text" name="start_date" class="form-control"
+                     value="{{ submitted.get('start_date', experience.start_date or '') }}" />
+            </div>
+            <div class="col-sm-6">
+              <label class="form-label">End Date</label>
+              <input type="text" name="end_date" class="form-control"
+                     value="{{ submitted.get('end_date', experience.end_date or '') }}" />
+            </div>
+            <div class="col-12">
+              <label class="form-label">Employment Type</label>
+              <input type="text" name="emp_type" class="form-control"
+                     value="{{ submitted.get('emp_type', experience.emp_type or '') }}" />
+            </div>
+            <div class="col-12">
+              <label class="form-label">Technologies Used</label>
+              <input type="text" name="technologies" class="form-control"
+                     value="{{ submitted.get('technologies', experience.technologies or '') }}"
+                     placeholder="Python, Flask, MySQL (comma-separated)" />
+            </div>
+            <div class="col-12">
+              <label class="form-label">Responsibilities</label>
+              <textarea name="responsibilities" class="form-control" rows="6">{% if form_data %}{{ submitted.get('responsibilities', '') }}{% else %}{% for item in experience.resp_list() %}{{ item }}{% if not loop.last %}
+{% endif %}{% endfor %}{% endif %}</textarea>
+              <small style="color:#94A3B8;font-size:0.72rem;">One item per line.</small>
+            </div>
+            <div class="col-sm-6">
+              <label class="form-label">Display Order</label>
+              <input type="number" name="order" class="form-control" min="0"
+                     value="{{ submitted.get('order', experience.order) }}" />
+            </div>
+            <div class="col-sm-6 d-flex align-items-end pb-2">
+              <div class="form-check">
+                <input class="form-check-input" type="checkbox" name="is_current" id="editIsCurrent"
+                       {% if current_value %}checked{% endif %} />
+                <label class="form-check-label" for="editIsCurrent">Current Position</label>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="d-flex gap-3">
+        <button type="submit" class="btn btn-primary px-4">
+          <i class="fas fa-save me-2"></i>Update Experience
+        </button>
+        <a href="{{ url_for('admin_experience') }}" class="btn btn-outline-primary px-4">Cancel</a>
+      </div>
+    </div>
+  </div>
+</form>
+{% endblock %}

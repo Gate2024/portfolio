@@ -3,6 +3,8 @@
 {% block page_title %}Edit Research Paper{% endblock %}
 {% block page_subtitle %}Update your published research details{% endblock %}
 
+{% set submitted = form_data or {} %}
+
 {% block content %}
 <form method="POST" action="{{ url_for('admin_edit_research', rid=paper.id) }}">
   <div class="row g-4">
@@ -19,41 +21,41 @@
             <div class="col-12">
               <label class="form-label">Paper Title *</label>
               <input type="text" name="title" class="form-control"
-                     value="{{ paper.title }}" required
+                     value="{{ submitted.get('title', paper.title) }}" required
                      placeholder="Full title of the research paper" />
             </div>
 
             <div class="col-sm-6">
               <label class="form-label">Journal / Conference *</label>
               <input type="text" name="journal" class="form-control"
-                     value="{{ paper.journal or '' }}"
+                     value="{{ submitted.get('journal', paper.journal or '') }}" required
                      placeholder="e.g. IJCRT, IEEE, Springer" />
             </div>
 
             <div class="col-sm-6">
               <label class="form-label">Publication Date</label>
               <input type="text" name="pub_date" class="form-control"
-                     value="{{ paper.pub_date or '' }}"
+                     value="{{ submitted.get('pub_date', paper.pub_date or '') }}"
                      placeholder="e.g. March 2024" />
             </div>
 
             <div class="col-12">
               <label class="form-label">Authors</label>
               <input type="text" name="authors" class="form-control"
-                     value="{{ paper.authors or '' }}"
+                     value="{{ submitted.get('authors', paper.authors or '') }}"
                      placeholder="e.g. Narayan Kishor Adhude, Co-Author Name" />
             </div>
 
             <div class="col-12">
               <label class="form-label">Abstract</label>
               <textarea name="abstract" class="form-control" rows="6"
-                        placeholder="Full abstract of the research paper…">{{ paper.abstract or '' }}</textarea>
+                        placeholder="Full abstract of the research paper…">{{ submitted.get('abstract', paper.abstract or '') }}</textarea>
             </div>
 
             <div class="col-12">
               <label class="form-label">Keywords</label>
               <input type="text" name="keywords" class="form-control"
-                     value="{{ paper.keywords or '' }}"
+                     value="{{ submitted.get('keywords', paper.keywords or '') }}"
                      placeholder="CNN, Deep Learning, TensorFlow, OpenCV (comma-separated)" />
               <small style="color:#94A3B8;font-size:0.72rem;">
                 Separate with commas — displayed as tags on the portfolio.
@@ -76,7 +78,7 @@
           <div class="mb-3">
             <label class="form-label">Published Paper URL</label>
             <input type="url" name="paper_url" class="form-control"
-                   value="{{ paper.paper_url or '' }}"
+                   value="{{ submitted.get('paper_url', paper.paper_url or '') }}"
                    placeholder="https://drive.google.com/… or https://ijcrt.org/…" />
             <small style="color:#94A3B8;font-size:0.72rem;">
               Google Drive link, journal page, or any public URL.
@@ -98,7 +100,7 @@
         <div class="admin-card-body">
           <label class="form-label">Order</label>
           <input type="number" name="order" class="form-control"
-                 value="{{ paper.order or 0 }}" min="0" />
+                 value="{{ submitted.get('order', paper.order) }}" min="0" />
           <small style="color:#94A3B8;font-size:0.72rem;">
             Lower number = shown first on portfolio.
           </small>

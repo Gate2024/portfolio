@@ -2,6 +2,7 @@ import os
 import json
 from datetime import datetime
 from functools import wraps
+from urllib.parse import urlparse
 from flask import (Flask, render_template, request, redirect,
                    url_for, flash, jsonify, session, send_from_directory)
 from flask_sqlalchemy import SQLAlchemy
@@ -589,6 +590,102 @@ def admin_profile():
     return render_template('admin/profile.html', profile=profile)
 
 
+# ── Admin: Education ──────────────────────────────────────────────────────────
+
+@app.route('/admin/education')
+@login_required
+def admin_education():
+    education = Education.query.order_by(Education.order).all()
+    return render_template('admin/education.html', education=education)
+
+
+@app.route('/admin/education/add', methods=['GET', 'POST'])
+@login_required
+def admin_add_education():
+    form_data = request.form if request.method == 'POST' else {}
+    if request.method == 'POST':
+        degree = request.form.get('degree', '').strip()
+        institution = request.form.get('institution', '').strip()
+        order_raw = request.form.get('order', '').strip()
+
+        if not degree or not institution:
+            flash('Degree and institution are required.', 'danger')
+            return render_template('admin/education_form.html', education=None, form_data=form_data)
+
+        if order_raw:
+            try:
+                order = int(order_raw)
+            except ValueError:
+                flash('Display order must be a valid integer.', 'danger')
+                return render_template('admin/education_form.html', education=None, form_data=form_data)
+        else:
+            max_order = db.session.query(db.func.max(Education.order)).scalar()
+            order = (max_order if max_order is not None else 0) + 1
+
+        education = Education(
+            degree=degree,
+            institution=institution,
+            year_start=request.form.get('year_start', '').strip(),
+            year_end=request.form.get('year_end', '').strip(),
+            grade=request.form.get('grade', '').strip(),
+            grade_type=request.form.get('grade_type', '').strip() or 'CGPA',
+            description=request.form.get('description', '').strip(),
+            order=order,
+        )
+        db.session.add(education)
+        db.session.commit()
+        flash('Education added!', 'success')
+        return redirect(url_for('admin_education'))
+    return render_template('admin/education_form.html', education=None, form_data=form_data)
+
+
+@app.route('/admin/education/edit/<int:eid>', methods=['GET', 'POST'])
+@login_required
+def admin_edit_education(eid):
+    education = Education.query.get_or_404(eid)
+    form_data = request.form if request.method == 'POST' else {}
+    if request.method == 'POST':
+        degree = request.form.get('degree', '').strip()
+        institution = request.form.get('institution', '').strip()
+        order_raw = request.form.get('order', '').strip()
+
+        if not degree or not institution:
+            flash('Degree and institution are required.', 'danger')
+            return render_template('admin/education_form.html', education=education, form_data=form_data)
+
+        if order_raw:
+            try:
+                order = int(order_raw)
+            except ValueError:
+                flash('Display order must be a valid integer.', 'danger')
+                return render_template('admin/education_form.html', education=education, form_data=form_data)
+        else:
+            order = education.order
+
+        education.degree = degree
+        education.institution = institution
+        education.year_start = request.form.get('year_start', '').strip()
+        education.year_end = request.form.get('year_end', '').strip()
+        education.grade = request.form.get('grade', '').strip()
+        education.grade_type = request.form.get('grade_type', '').strip()
+        education.description = request.form.get('description', '').strip()
+        education.order = order
+        db.session.commit()
+        flash('Education updated!', 'success')
+        return redirect(url_for('admin_education'))
+    return render_template('admin/education_form.html', education=education, form_data=form_data)
+
+
+@app.route('/admin/education/delete/<int:eid>', methods=['POST'])
+@login_required
+def admin_delete_education(eid):
+    education = Education.query.get_or_404(eid)
+    db.session.delete(education)
+    db.session.commit()
+    flash('Education deleted.', 'success')
+    return redirect(url_for('admin_education'))
+
+
 # ── Admin: Projects ───────────────────────────────────────────────────────────
 
 @app.route('/admin/projects')
@@ -715,25 +812,82 @@ def admin_delete_skill(sid):
 @login_required
 def admin_certifications():
     certs = Certification.query.order_by(Certification.order).all()
-    return render_template('admin/certifications.html', certs=certs)
+    return render_template('admin/certifications.html', certs=certs, form_data={})
 
 
 @app.route('/admin/certifications/add', methods=['POST'])
 @login_required
 def admin_add_certification():
+    title = request.form.get('title', '').strip()
+    issuer = request.form.get('issuer', '').strip()
+    order_raw = request.form.get('order', '').strip()
+    certs = Certification.query.order_by(Certification.order).all()
+
+    if not title or not issuer:
+        flash('Certificate title and issuer are required.', 'danger')
+        return render_template('admin/certifications.html', certs=certs, form_data=request.form)
+
+    if order_raw:
+        try:
+            order = int(order_raw)
+        except ValueError:
+            flash('Display order must be a valid integer.', 'danger')
+            return render_template('admin/certifications.html', certs=certs, form_data=request.form)
+    else:
+        max_order = db.session.query(db.func.max(Certification.order)).scalar()
+        order = (max_order if max_order is not None else 0) + 1
+
     c = Certification(
-        title=request.form.get('title'),
-        issuer=request.form.get('issuer'),
-        category=request.form.get('category', 'Technical'),
-        cert_url=request.form.get('cert_url'),
-        issue_date=request.form.get('issue_date'),
-        credential_id=request.form.get('credential_id'),
-        order=int(request.form.get('order', 0)),
+        title=title,
+        issuer=issuer,
+        category=request.form.get('category', 'Technical').strip() or 'Technical',
+        cert_url=request.form.get('cert_url', '').strip(),
+        issue_date=request.form.get('issue_date', '').strip(),
+        credential_id=request.form.get('credential_id', '').strip(),
+        order=order,
     )
     db.session.add(c)
     db.session.commit()
     flash('Certification added!', 'success')
     return redirect(url_for('admin_certifications'))
+
+
+@app.route('/admin/certifications/edit/<int:cid>', methods=['GET', 'POST'])
+@login_required
+def admin_edit_certification(cid):
+    certification = Certification.query.get_or_404(cid)
+    form_data = request.form if request.method == 'POST' else {}
+
+    if request.method == 'POST':
+        title = request.form.get('title', '').strip()
+        issuer = request.form.get('issuer', '').strip()
+        order_raw = request.form.get('order', '').strip()
+
+        if not title or not issuer:
+            flash('Certificate title and issuer are required.', 'danger')
+            return render_template('admin/certification_form.html', certification=certification, form_data=form_data)
+
+        if order_raw:
+            try:
+                order = int(order_raw)
+            except ValueError:
+                flash('Display order must be a valid integer.', 'danger')
+                return render_template('admin/certification_form.html', certification=certification, form_data=form_data)
+        else:
+            order = certification.order
+
+        certification.title = title
+        certification.issuer = issuer
+        certification.category = request.form.get('category', 'Technical').strip() or 'Technical'
+        certification.cert_url = request.form.get('cert_url', '').strip()
+        certification.issue_date = request.form.get('issue_date', '').strip()
+        certification.credential_id = request.form.get('credential_id', '').strip()
+        certification.order = order
+        db.session.commit()
+        flash('Certification updated!', 'success')
+        return redirect(url_for('admin_certifications'))
+
+    return render_template('admin/certification_form.html', certification=certification, form_data=form_data)
 
 
 @app.route('/admin/certifications/delete/<int:cid>', methods=['POST'])
@@ -752,24 +906,78 @@ def admin_delete_certification(cid):
 @login_required
 def admin_achievements():
     achievements = Achievement.query.order_by(Achievement.order).all()
-    return render_template('admin/achievements.html', achievements=achievements)
+    return render_template('admin/achievements.html', achievements=achievements, form_data={})
 
 
 @app.route('/admin/achievements/add', methods=['POST'])
 @login_required
 def admin_add_achievement():
+    title = request.form.get('title', '').strip()
+    order_raw = request.form.get('order', '').strip()
+    achievements = Achievement.query.order_by(Achievement.order).all()
+
+    if not title:
+        flash('Achievement title is required.', 'danger')
+        return render_template('admin/achievements.html', achievements=achievements, form_data=request.form)
+
+    if order_raw:
+        try:
+            order = int(order_raw)
+        except ValueError:
+            flash('Display order must be a valid integer.', 'danger')
+            return render_template('admin/achievements.html', achievements=achievements, form_data=request.form)
+    else:
+        max_order = db.session.query(db.func.max(Achievement.order)).scalar()
+        order = (max_order if max_order is not None else 0) + 1
+
     a = Achievement(
-        title=request.form.get('title'),
-        description=request.form.get('description'),
-        date=request.form.get('date'),
-        icon=request.form.get('icon', 'fas fa-trophy'),
-        category=request.form.get('category', 'Achievement'),
-        order=int(request.form.get('order', 0)),
+        title=title,
+        description=request.form.get('description', '').strip(),
+        date=request.form.get('date', '').strip(),
+        icon=request.form.get('icon', '').strip() or 'fas fa-trophy',
+        category=request.form.get('category', 'Leadership').strip() or 'Leadership',
+        order=order,
     )
     db.session.add(a)
     db.session.commit()
     flash('Achievement added!', 'success')
     return redirect(url_for('admin_achievements'))
+
+
+@app.route('/admin/achievements/edit/<int:aid>', methods=['GET', 'POST'])
+@login_required
+def admin_edit_achievement(aid):
+    achievement = Achievement.query.get_or_404(aid)
+    form_data = request.form if request.method == 'POST' else {}
+
+    if request.method == 'POST':
+        title = request.form.get('title', '').strip()
+        order_raw = request.form.get('order', '').strip()
+
+        if not title:
+            flash('Achievement title is required.', 'danger')
+            return render_template('admin/achievement_form.html', achievement=achievement, form_data=form_data)
+
+        if order_raw:
+            try:
+                order = int(order_raw)
+            except ValueError:
+                flash('Display order must be a valid integer.', 'danger')
+                return render_template('admin/achievement_form.html', achievement=achievement, form_data=form_data)
+        else:
+            order = achievement.order
+
+        achievement.title = title
+        achievement.description = request.form.get('description', '').strip()
+        achievement.date = request.form.get('date', '').strip()
+        achievement.icon = request.form.get('icon', '').strip() or 'fas fa-trophy'
+        achievement.category = request.form.get('category', 'Leadership').strip() or 'Leadership'
+        achievement.order = order
+        db.session.commit()
+        flash('Achievement updated!', 'success')
+        return redirect(url_for('admin_achievements'))
+
+    return render_template('admin/achievement_form.html', achievement=achievement, form_data=form_data)
 
 
 @app.route('/admin/achievements/delete/<int:aid>', methods=['POST'])
@@ -788,21 +996,47 @@ def admin_delete_achievement(aid):
 @login_required
 def admin_research():
     papers = Research.query.order_by(Research.order).all()
-    return render_template('admin/research.html', papers=papers)
+    return render_template('admin/research.html', papers=papers, form_data={})
 
 
 @app.route('/admin/research/add', methods=['POST'])
 @login_required
 def admin_add_research():
+    title = request.form.get('title', '').strip()
+    journal = request.form.get('journal', '').strip()
+    paper_url = request.form.get('paper_url', '').strip()
+    order_raw = request.form.get('order', '').strip()
+    papers = Research.query.order_by(Research.order).all()
+
+    if not title or not journal:
+        flash('Paper title and journal/conference are required.', 'danger')
+        return render_template('admin/research.html', papers=papers, form_data=request.form)
+
+    if paper_url:
+        parsed_url = urlparse(paper_url)
+        if parsed_url.scheme not in ('http', 'https') or not parsed_url.netloc:
+            flash('Paper URL must be a valid HTTP or HTTPS URL.', 'danger')
+            return render_template('admin/research.html', papers=papers, form_data=request.form)
+
+    if order_raw:
+        try:
+            order = int(order_raw)
+        except ValueError:
+            flash('Display order must be a valid integer.', 'danger')
+            return render_template('admin/research.html', papers=papers, form_data=request.form)
+    else:
+        max_order = db.session.query(db.func.max(Research.order)).scalar()
+        order = (max_order if max_order is not None else 0) + 1
+
     r = Research(
-        title=request.form.get('title'),
-        journal=request.form.get('journal'),
-        abstract=request.form.get('abstract'),
-        paper_url=request.form.get('paper_url'),
-        pub_date=request.form.get('pub_date'),
-        authors=request.form.get('authors'),
-        keywords=request.form.get('keywords'),
-        order=int(request.form.get('order', 0)),
+        title=title,
+        journal=journal,
+        abstract=request.form.get('abstract', '').strip(),
+        paper_url=paper_url,
+        pub_date=request.form.get('pub_date', '').strip(),
+        authors=request.form.get('authors', '').strip(),
+        keywords=request.form.get('keywords', '').strip(),
+        order=order,
     )
     db.session.add(r)
     db.session.commit()
@@ -814,19 +1048,44 @@ def admin_add_research():
 @login_required
 def admin_edit_research(rid):
     r = Research.query.get_or_404(rid)
+    form_data = request.form if request.method == 'POST' else {}
     if request.method == 'POST':
-        r.title     = request.form.get('title', r.title)
-        r.journal   = request.form.get('journal', r.journal)
-        r.abstract  = request.form.get('abstract', r.abstract)
-        r.paper_url = request.form.get('paper_url', r.paper_url)
-        r.pub_date  = request.form.get('pub_date', r.pub_date)
-        r.authors   = request.form.get('authors', r.authors)
-        r.keywords  = request.form.get('keywords', r.keywords)
-        r.order     = int(request.form.get('order', r.order))
+        title = request.form.get('title', '').strip()
+        journal = request.form.get('journal', '').strip()
+        paper_url = request.form.get('paper_url', '').strip()
+        order_raw = request.form.get('order', '').strip()
+
+        if not title or not journal:
+            flash('Paper title and journal/conference are required.', 'danger')
+            return render_template('admin/research_form.html', paper=r, form_data=form_data)
+
+        if paper_url:
+            parsed_url = urlparse(paper_url)
+            if parsed_url.scheme not in ('http', 'https') or not parsed_url.netloc:
+                flash('Paper URL must be a valid HTTP or HTTPS URL.', 'danger')
+                return render_template('admin/research_form.html', paper=r, form_data=form_data)
+
+        if order_raw:
+            try:
+                order = int(order_raw)
+            except ValueError:
+                flash('Display order must be a valid integer.', 'danger')
+                return render_template('admin/research_form.html', paper=r, form_data=form_data)
+        else:
+            order = r.order
+
+        r.title     = title
+        r.journal   = journal
+        r.abstract  = request.form.get('abstract', '').strip()
+        r.paper_url = paper_url
+        r.pub_date  = request.form.get('pub_date', '').strip()
+        r.authors   = request.form.get('authors', '').strip()
+        r.keywords  = request.form.get('keywords', '').strip()
+        r.order     = order
         db.session.commit()
         flash('Research paper updated!', 'success')
         return redirect(url_for('admin_research'))
-    return render_template('admin/research_form.html', paper=r)
+    return render_template('admin/research_form.html', paper=r, form_data=form_data)
 
 
 @app.route('/admin/research/delete/<int:rid>', methods=['POST'])
@@ -868,11 +1127,36 @@ def admin_social():
     if request.method == 'POST':
         action = request.form.get('action')
         if action == 'add':
+            platform = request.form.get('platform', '').strip()
+            url = request.form.get('url', '').strip()
+            order_raw = request.form.get('order', '').strip()
+            links = SocialLink.query.order_by(SocialLink.order).all()
+
+            if not platform:
+                flash('Platform name is required.', 'danger')
+                return render_template('admin/social.html', links=links, form_data=request.form)
+
+            parsed_url = urlparse(url)
+            if not url or parsed_url.scheme not in ('http', 'https') or not parsed_url.netloc:
+                flash('Please enter a valid HTTP or HTTPS URL.', 'danger')
+                return render_template('admin/social.html', links=links, form_data=request.form)
+
+            if order_raw:
+                try:
+                    order = int(order_raw)
+                except ValueError:
+                    flash('Display order must be a valid integer.', 'danger')
+                    return render_template('admin/social.html', links=links, form_data=request.form)
+            else:
+                max_order = db.session.query(db.func.max(SocialLink.order)).scalar()
+                order = (max_order if max_order is not None else 0) + 1
+
             s = SocialLink(
-                platform=request.form.get('platform'),
-                url=request.form.get('url'),
-                icon=request.form.get('icon', 'fab fa-link'),
-                order=int(request.form.get('order', 0)),
+                platform=platform,
+                url=url,
+                icon=request.form.get('icon', '').strip() or 'fab fa-link',
+                order=order,
+                is_active=request.form.get('is_active', '1') == '1',
             )
             db.session.add(s)
             flash('Social link added!', 'success')
@@ -884,7 +1168,48 @@ def admin_social():
         db.session.commit()
         return redirect(url_for('admin_social'))
     links = SocialLink.query.order_by(SocialLink.order).all()
-    return render_template('admin/social.html', links=links)
+    return render_template('admin/social.html', links=links, form_data={})
+
+
+@app.route('/admin/social/edit/<int:sid>', methods=['GET', 'POST'])
+@login_required
+def admin_edit_social(sid):
+    social_link = SocialLink.query.get_or_404(sid)
+    form_data = request.form if request.method == 'POST' else {}
+
+    if request.method == 'POST':
+        platform = request.form.get('platform', '').strip()
+        url = request.form.get('url', '').strip()
+        order_raw = request.form.get('order', '').strip()
+
+        if not platform:
+            flash('Platform name is required.', 'danger')
+            return render_template('admin/social_form.html', social_link=social_link, form_data=form_data)
+
+        parsed_url = urlparse(url)
+        if not url or parsed_url.scheme not in ('http', 'https') or not parsed_url.netloc:
+            flash('Please enter a valid HTTP or HTTPS URL.', 'danger')
+            return render_template('admin/social_form.html', social_link=social_link, form_data=form_data)
+
+        if order_raw:
+            try:
+                order = int(order_raw)
+            except ValueError:
+                flash('Display order must be a valid integer.', 'danger')
+                return render_template('admin/social_form.html', social_link=social_link, form_data=form_data)
+        else:
+            order = social_link.order
+
+        social_link.platform = platform
+        social_link.url = url
+        social_link.icon = request.form.get('icon', '').strip() or 'fab fa-link'
+        social_link.order = order
+        social_link.is_active = request.form.get('is_active') == '1'
+        db.session.commit()
+        flash('Social link updated!', 'success')
+        return redirect(url_for('admin_social'))
+
+    return render_template('admin/social_form.html', social_link=social_link, form_data=form_data)
 
 
 # ── Admin: Experience ─────────────────────────────────────────────────────────
@@ -893,29 +1218,92 @@ def admin_social():
 @login_required
 def admin_experience():
     experiences = Experience.query.order_by(Experience.order).all()
-    return render_template('admin/experience.html', experiences=experiences)
+    return render_template('admin/experience.html', experiences=experiences, form_data={})
 
 
 @app.route('/admin/experience/add', methods=['POST'])
 @login_required
 def admin_add_experience():
+    title = request.form.get('title', '').strip()
+    company = request.form.get('company', '').strip()
+    order_raw = request.form.get('order', '').strip()
+    experiences = Experience.query.order_by(Experience.order).all()
+
+    if not title or not company:
+        flash('Job title and company are required.', 'danger')
+        return render_template('admin/experience.html', experiences=experiences, form_data=request.form)
+
+    if order_raw:
+        try:
+            order = int(order_raw)
+        except ValueError:
+            flash('Display order must be a valid integer.', 'danger')
+            return render_template('admin/experience.html', experiences=experiences, form_data=request.form)
+    else:
+        max_order = db.session.query(db.func.max(Experience.order)).scalar()
+        order = (max_order if max_order is not None else 0) + 1
+
     resp_raw = request.form.get('responsibilities', '')
     resp_list = [r.strip() for r in resp_raw.split('\n') if r.strip()]
     e = Experience(
-        title=request.form.get('title'),
-        company=request.form.get('company'),
-        location=request.form.get('location'),
-        start_date=request.form.get('start_date'),
-        end_date=request.form.get('end_date'),
-        emp_type=request.form.get('emp_type'),
-        technologies=request.form.get('technologies'),
+        title=title,
+        company=company,
+        location=request.form.get('location', '').strip(),
+        start_date=request.form.get('start_date', '').strip(),
+        end_date=request.form.get('end_date', '').strip(),
+        emp_type=request.form.get('emp_type', '').strip(),
+        technologies=request.form.get('technologies', '').strip(),
         responsibilities=json.dumps(resp_list),
-        order=int(request.form.get('order', 0)),
+        order=order,
+        is_current=bool(request.form.get('is_current')),
     )
     db.session.add(e)
     db.session.commit()
     flash('Experience added!', 'success')
     return redirect(url_for('admin_experience'))
+
+
+@app.route('/admin/experience/edit/<int:eid>', methods=['GET', 'POST'])
+@login_required
+def admin_edit_experience(eid):
+    experience = Experience.query.get_or_404(eid)
+    form_data = request.form if request.method == 'POST' else {}
+
+    if request.method == 'POST':
+        title = request.form.get('title', '').strip()
+        company = request.form.get('company', '').strip()
+        order_raw = request.form.get('order', '').strip()
+
+        if not title or not company:
+            flash('Job title and company are required.', 'danger')
+            return render_template('admin/experience_form.html', experience=experience, form_data=form_data)
+
+        if order_raw:
+            try:
+                order = int(order_raw)
+            except ValueError:
+                flash('Display order must be a valid integer.', 'danger')
+                return render_template('admin/experience_form.html', experience=experience, form_data=form_data)
+        else:
+            order = experience.order
+
+        resp_raw = request.form.get('responsibilities', '')
+        resp_list = [r.strip() for r in resp_raw.split('\n') if r.strip()]
+        experience.title = title
+        experience.company = company
+        experience.location = request.form.get('location', '').strip()
+        experience.start_date = request.form.get('start_date', '').strip()
+        experience.end_date = request.form.get('end_date', '').strip()
+        experience.emp_type = request.form.get('emp_type', '').strip()
+        experience.technologies = request.form.get('technologies', '').strip()
+        experience.responsibilities = json.dumps(resp_list)
+        experience.order = order
+        experience.is_current = bool(request.form.get('is_current'))
+        db.session.commit()
+        flash('Experience updated!', 'success')
+        return redirect(url_for('admin_experience'))
+
+    return render_template('admin/experience_form.html', experience=experience, form_data=form_data)
 
 
 @app.route('/admin/experience/delete/<int:eid>', methods=['POST'])

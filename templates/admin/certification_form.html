@@ -1,0 +1,73 @@
+{% extends "admin/base.html" %}
+{% block title %}Edit Certification{% endblock %}
+{% block page_title %}Edit Certification{% endblock %}
+{% block page_subtitle %}Update your professional credential{% endblock %}
+
+{% set submitted = form_data or {} %}
+{% set selected_category = submitted.get('category', certification.category or 'Technical') %}
+
+{% block content %}
+<form method="POST">
+  <div class="row g-4">
+    <div class="col-lg-8">
+      <div class="admin-card mb-4">
+        <div class="admin-card-header">
+          <h6><i class="fas fa-certificate me-2" style="color:#4F46E5;"></i>Certification Details</h6>
+        </div>
+        <div class="admin-card-body">
+          <div class="row g-3">
+            <div class="col-12">
+              <label class="form-label">Certificate Title *</label>
+              <input type="text" name="title" class="form-control"
+                     value="{{ submitted.get('title', certification.title) }}" required />
+            </div>
+            <div class="col-12">
+              <label class="form-label">Issuing Organisation *</label>
+              <input type="text" name="issuer" class="form-control"
+                     value="{{ submitted.get('issuer', certification.issuer) }}" required />
+            </div>
+            <div class="col-12">
+              <label class="form-label">Category</label>
+              <select name="category" class="form-select">
+                {% for category in ['Technical', 'AI/ML', 'Cloud', 'Data Science', 'Soft Skills', 'Other'] %}
+                <option value="{{ category }}" {% if selected_category == category %}selected{% endif %}>{{ category }}</option>
+                {% endfor %}
+                {% if selected_category and selected_category not in ['Technical', 'AI/ML', 'Cloud', 'Data Science', 'Soft Skills', 'Other'] %}
+                <option value="{{ selected_category }}" selected>{{ selected_category }}</option>
+                {% endif %}
+              </select>
+            </div>
+            <div class="col-12">
+              <label class="form-label">Certificate URL</label>
+              <input type="url" name="cert_url" class="form-control"
+                     value="{{ submitted.get('cert_url', certification.cert_url or '') }}" />
+            </div>
+            <div class="col-sm-6">
+              <label class="form-label">Issue Date</label>
+              <input type="text" name="issue_date" class="form-control"
+                     value="{{ submitted.get('issue_date', certification.issue_date or '') }}" />
+            </div>
+            <div class="col-sm-6">
+              <label class="form-label">Credential ID</label>
+              <input type="text" name="credential_id" class="form-control"
+                     value="{{ submitted.get('credential_id', certification.credential_id or '') }}" />
+            </div>
+            <div class="col-sm-6">
+              <label class="form-label">Display Order</label>
+              <input type="number" name="order" class="form-control" min="0"
+                     value="{{ submitted.get('order', certification.order) }}" />
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="d-flex gap-3">
+        <button type="submit" class="btn btn-primary px-4">
+          <i class="fas fa-save me-2"></i>Update Certification
+        </button>
+        <a href="{{ url_for('admin_certifications') }}" class="btn btn-outline-primary px-4">Cancel</a>
+      </div>
+    </div>
+  </div>
+</form>
+{% endblock %}

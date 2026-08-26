@@ -135,7 +135,7 @@
 
         <div class="hero-socials">
           {% for s in social_links %}
-          <a href="{{ s.url }}" target="_blank" class="social-icon" title="{{ s.platform }}">
+          <a href="{{ s.url }}" target="_blank" rel="noopener" class="social-icon" title="{{ s.platform }}">
             <i class="{{ s.icon }}"></i>
           </a>
           {% endfor %}
@@ -373,7 +373,7 @@
               <p class="exp-company"><i class="fas fa-building me-1"></i>{{ exp.company }}</p>
             </div>
             <div class="exp-meta">
-              <span class="exp-date"><i class="fas fa-calendar me-1"></i>{{ exp.start_date }} – {{ exp.end_date }}</span>
+              <span class="exp-date"><i class="fas fa-calendar me-1"></i>{{ exp.start_date }} – {{ 'Present' if exp.is_current else exp.end_date }}</span>
               <span class="exp-type-badge">{{ exp.emp_type }}</span>
               {% if exp.location %}
               <span class="exp-location"><i class="fas fa-map-marker-alt me-1"></i>{{ exp.location }}</span>
@@ -560,11 +560,17 @@
               <i class="fas fa-certificate"></i>
             {% endif %}
           </div>
-          <div class="cert-info">
-            <h5 class="cert-title">{{ cert.title }}</h5>
-            <p class="cert-issuer"><i class="fas fa-award me-1"></i>{{ cert.issuer }}</p>
-            <span class="cert-cat-badge">{{ cert.category }}</span>
-          </div>
+           <div class="cert-info">
+             <h5 class="cert-title">{{ cert.title }}</h5>
+             <p class="cert-issuer"><i class="fas fa-award me-1"></i>{{ cert.issuer }}</p>
+             <span class="cert-cat-badge">{{ cert.category }}</span>
+             {% if cert.issue_date %}
+             <small class="d-block text-muted mt-2">Issued: {{ cert.issue_date }}</small>
+             {% endif %}
+             {% if cert.credential_id %}
+             <small class="d-block text-muted mt-1">Credential ID: {{ cert.credential_id }}</small>
+             {% endif %}
+           </div>
           {% if cert.cert_url %}
           <a href="{{ cert.cert_url }}" target="_blank" class="cert-link">
             <i class="fas fa-external-link-alt"></i>
@@ -629,6 +635,12 @@
         </div>
         <div class="research-content">
           <span class="research-journal-badge"><i class="fas fa-book-open me-1"></i>{{ paper.journal }}</span>
+          {% if paper.authors %}
+          <div class="research-authors"><i class="fas fa-user-pen me-1"></i>{{ paper.authors }}</div>
+          {% endif %}
+          {% if paper.pub_date %}
+          <div class="research-date"><i class="fas fa-calendar me-1"></i>{{ paper.pub_date }}</div>
+          {% endif %}
           <h4 class="research-title">{{ paper.title }}</h4>
           {% if paper.abstract %}
           <p class="research-abstract">{{ paper.abstract }}</p>
@@ -641,7 +653,7 @@
           </div>
           {% endif %}
           {% if paper.paper_url %}
-          <a href="{{ paper.paper_url }}" target="_blank" class="btn btn-research-view">
+          <a href="{{ paper.paper_url }}" target="_blank" rel="noopener" class="btn btn-research-view">
             <i class="fas fa-file-alt me-2"></i>View Paper
           </a>
           {% endif %}
@@ -726,7 +738,7 @@
           <div class="contact-socials mt-4">
             <h6 class="mb-3">Follow me on</h6>
             {% for s in social_links %}
-            <a href="{{ s.url }}" target="_blank" class="contact-social-icon" title="{{ s.platform }}">
+            <a href="{{ s.url }}" target="_blank" rel="noopener" class="contact-social-icon" title="{{ s.platform }}">
               <i class="{{ s.icon }}"></i>
             </a>
             {% endfor %}
@@ -792,7 +804,7 @@
           <p class="footer-bio">{{ profile.bio[:200] }}{% if profile.bio|length > 200 %}…{% endif %}</p>
           <div class="footer-socials">
             {% for s in social_links %}
-            <a href="{{ s.url }}" target="_blank" title="{{ s.platform }}"><i class="{{ s.icon }}"></i></a>
+            <a href="{{ s.url }}" target="_blank" rel="noopener" title="{{ s.platform }}"><i class="{{ s.icon }}"></i></a>
             {% endfor %}
           </div>
         </div>

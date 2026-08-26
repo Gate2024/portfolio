@@ -4,6 +4,7 @@
 {% block page_subtitle %}Manage your social media profiles and external links{% endblock %}
 
 {% block content %}
+{% set submitted = form_data or {} %}
 <div class="row g-4">
 
   <!-- Add Link Form -->
@@ -18,17 +19,19 @@
           <div class="mb-3">
             <label class="form-label">Platform Name *</label>
             <input type="text" name="platform" class="form-control"
+                   value="{{ submitted.get('platform', '') }}"
                    placeholder="e.g. LinkedIn" required />
           </div>
           <div class="mb-3">
             <label class="form-label">Profile URL *</label>
             <input type="url" name="url" class="form-control"
+                   value="{{ submitted.get('url', '') }}"
                    placeholder="https://linkedin.com/in/yourprofile" required />
           </div>
           <div class="mb-3">
             <label class="form-label">FontAwesome Icon Class *</label>
             <input type="text" name="icon" class="form-control"
-                   value="fab fa-link" placeholder="e.g. fab fa-linkedin" required />
+                   value="{{ submitted.get('icon', 'fab fa-link') }}" placeholder="e.g. fab fa-linkedin" required />
             <small style="color:#94A3B8;font-size:0.72rem;">
               Common: fab fa-linkedin · fab fa-github · fab fa-twitter ·
               fab fa-instagram · fab fa-youtube · fab fa-facebook
@@ -36,7 +39,14 @@
           </div>
           <div class="mb-3">
             <label class="form-label">Display Order</label>
-            <input type="number" name="order" class="form-control" value="0" min="0" />
+            <input type="number" name="order" class="form-control" value="{{ submitted.get('order', '') }}" min="0" />
+            <small style="color:#94A3B8;font-size:0.72rem;display:block;margin-top:5px;">Leave blank for the next available order.</small>
+          </div>
+          <div class="form-check mb-3">
+            <input class="form-check-input" type="checkbox" name="is_active" value="1"
+                   id="addSocialActive" {% if submitted.get('is_active', '1') == '1' %}checked{% endif %} />
+            <label class="form-check-label" for="addSocialActive">Active</label>
+            <input type="hidden" name="is_active" value="0" />
           </div>
           <button type="submit" class="btn btn-primary w-100">
             <i class="fas fa-plus me-2"></i>Add Link
@@ -87,6 +97,9 @@
           </div>
           <!-- Delete -->
           <div>
+            <a href="{{ url_for('admin_edit_social', sid=link.id) }}" class="edit-btn" title="Edit">
+              <i class="fas fa-pencil"></i>
+            </a>
             <form method="POST" style="display:inline;"
                   onsubmit="return confirm('Remove {{ link.platform }} link?');">
               <input type="hidden" name="action" value="delete" />

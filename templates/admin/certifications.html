@@ -4,6 +4,7 @@
 {% block page_subtitle %}Manage your professional credentials and certificates{% endblock %}
 
 {% block content %}
+{% set submitted = form_data or {} %}
 <div class="row g-4">
 
   <!-- Add Certification Form -->
@@ -17,42 +18,46 @@
           <div class="mb-3">
             <label class="form-label">Certificate Title *</label>
             <input type="text" name="title" class="form-control"
+                   value="{{ submitted.get('title', '') }}"
                    placeholder="e.g. Python for Data Science" required />
           </div>
           <div class="mb-3">
             <label class="form-label">Issuing Organisation *</label>
             <input type="text" name="issuer" class="form-control"
+                   value="{{ submitted.get('issuer', '') }}"
                    placeholder="e.g. IIT Kanpur (NPTEL)" required />
           </div>
           <div class="mb-3">
             <label class="form-label">Category</label>
             <select name="category" class="form-select">
-              <option value="Technical">Technical</option>
-              <option value="AI/ML">AI/ML</option>
-              <option value="Cloud">Cloud</option>
-              <option value="Data Science">Data Science</option>
-              <option value="Soft Skills">Soft Skills</option>
-              <option value="Other">Other</option>
+              {% set selected_category = submitted.get('category', 'Technical') %}
+              {% for category in ['Technical', 'AI/ML', 'Cloud', 'Data Science', 'Soft Skills', 'Other'] %}
+              <option value="{{ category }}" {% if selected_category == category %}selected{% endif %}>{{ category }}</option>
+              {% endfor %}
             </select>
           </div>
           <div class="mb-3">
             <label class="form-label">Certificate URL</label>
             <input type="url" name="cert_url" class="form-control"
+                   value="{{ submitted.get('cert_url', '') }}"
                    placeholder="https://drive.google.com/…" />
           </div>
           <div class="mb-3">
             <label class="form-label">Issue Date</label>
             <input type="text" name="issue_date" class="form-control"
+                   value="{{ submitted.get('issue_date', '') }}"
                    placeholder="e.g. Jan 2024" />
           </div>
           <div class="mb-3">
             <label class="form-label">Credential ID</label>
             <input type="text" name="credential_id" class="form-control"
+                   value="{{ submitted.get('credential_id', '') }}"
                    placeholder="Optional credential ID" />
           </div>
           <div class="mb-3">
             <label class="form-label">Display Order</label>
-            <input type="number" name="order" class="form-control" value="0" min="0" />
+            <input type="number" name="order" class="form-control" value="{{ submitted.get('order', '') }}" min="0" />
+            <small style="color:#94A3B8;font-size:0.72rem;display:block;margin-top:5px;">Leave blank for the next available order.</small>
           </div>
           <button type="submit" class="btn btn-primary w-100">
             <i class="fas fa-plus me-2"></i>Add Certification
@@ -87,13 +92,16 @@
             <tbody>
               {% for c in certs %}
               <tr>
-                <td style="color:#94A3B8;font-weight:600;">{{ c.order or loop.index }}</td>
+                <td style="color:#94A3B8;font-weight:600;">{{ c.order }}</td>
                 <td>
                   <div style="font-weight:600;font-size:0.85rem;color:#0F172A;max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">
                     {{ c.title }}
                   </div>
                   {% if c.issue_date %}
                   <div style="color:#94A3B8;font-size:0.72rem;">{{ c.issue_date }}</div>
+                  {% endif %}
+                  {% if c.credential_id %}
+                  <div style="color:#94A3B8;font-size:0.72rem;">{{ c.credential_id }}</div>
                   {% endif %}
                 </td>
                 <td style="font-size:0.82rem;color:#475569;">{{ c.issuer }}</td>
@@ -108,6 +116,9 @@
                   {% endif %}
                 </td>
                 <td style="text-align:right;">
+                  <a href="{{ url_for('admin_edit_certification', cid=c.id) }}" class="edit-btn" title="Edit">
+                    <i class="fas fa-pencil"></i>
+                  </a>
                   <form method="POST" action="{{ url_for('admin_delete_certification', cid=c.id) }}" style="display:inline;"
                         onsubmit="return confirm('Delete «{{ c.title }}»?');">
                     <button type="submit" class="delete-btn"><i class="fas fa-trash"></i></button>

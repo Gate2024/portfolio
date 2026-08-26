@@ -4,6 +4,7 @@
 {% block page_subtitle %}Manage your professional work history and internships{% endblock %}
 
 {% block content %}
+{% set submitted = form_data or {} %}
 <div class="row g-4">
 
   <!-- Add Experience Form -->
@@ -17,47 +18,54 @@
           <div class="mb-3">
             <label class="form-label">Job Title *</label>
             <input type="text" name="title" class="form-control"
+                   value="{{ submitted.get('title', '') }}"
                    placeholder="e.g. Software Development Intern" required />
           </div>
           <div class="mb-3">
             <label class="form-label">Company / Organisation *</label>
             <input type="text" name="company" class="form-control"
+                   value="{{ submitted.get('company', '') }}"
                    placeholder="e.g. Vikalpa Guru Pvt. Ltd" required />
           </div>
           <div class="mb-3">
             <label class="form-label">Location</label>
-            <input type="text" name="location" class="form-control"
+            <input type="text" name="location" class="form-control" value="{{ submitted.get('location', '') }}"
                    placeholder="e.g. On-site / Remote / Online" />
           </div>
           <div class="row g-2 mb-3">
             <div class="col-6">
               <label class="form-label">Start Date</label>
-              <input type="text" name="start_date" class="form-control" placeholder="Jun 2025" />
+              <input type="text" name="start_date" class="form-control" value="{{ submitted.get('start_date', '') }}" placeholder="Jun 2025" />
             </div>
             <div class="col-6">
               <label class="form-label">End Date</label>
-              <input type="text" name="end_date" class="form-control" placeholder="Aug 2025 / Present" />
+              <input type="text" name="end_date" class="form-control" value="{{ submitted.get('end_date', '') }}" placeholder="Aug 2025 / Present" />
             </div>
           </div>
           <div class="mb-3">
             <label class="form-label">Employment Type</label>
-            <input type="text" name="emp_type" class="form-control"
+            <input type="text" name="emp_type" class="form-control" value="{{ submitted.get('emp_type', '') }}"
                    placeholder="e.g. Internship · 2 Months" />
           </div>
           <div class="mb-3">
             <label class="form-label">Technologies Used</label>
-            <input type="text" name="technologies" class="form-control"
+            <input type="text" name="technologies" class="form-control" value="{{ submitted.get('technologies', '') }}"
                    placeholder="Python, Flask, MySQL (comma-separated)" />
           </div>
           <div class="mb-3">
             <label class="form-label">Responsibilities</label>
             <textarea name="responsibilities" class="form-control" rows="5"
-                      placeholder="One responsibility per line:&#10;Developed Book Management module&#10;Implemented CRUD operations&#10;Built role-based dashboard"></textarea>
+                      placeholder="One responsibility per line:&#10;Developed Book Management module&#10;Implemented CRUD operations&#10;Built role-based dashboard">{{ submitted.get('responsibilities', '') }}</textarea>
             <small style="color:#94A3B8;font-size:0.72rem;">One item per line.</small>
           </div>
           <div class="mb-3">
             <label class="form-label">Display Order</label>
-            <input type="number" name="order" class="form-control" value="0" min="0" />
+            <input type="number" name="order" class="form-control" value="{{ submitted.get('order', '0') }}" min="0" />
+          </div>
+          <div class="form-check mb-3">
+            <input class="form-check-input" type="checkbox" name="is_current" id="addIsCurrent"
+                   {% if submitted.get('is_current') %}checked{% endif %} />
+            <label class="form-check-label" for="addIsCurrent">Current Position</label>
           </div>
           <button type="submit" class="btn btn-primary w-100">
             <i class="fas fa-plus me-2"></i>Add Experience
@@ -79,13 +87,13 @@
         {% if experiences %}
         {% for exp in experiences %}
         <div style="padding:20px 22px;border-bottom:1px solid #F1F5F9;">
-          <div style="display:flex;justify-content:space-between;align-items:flex-start;flex-wrap:wrap;gap:8px;margin-bottom:10px;">
+              <div style="display:flex;justify-content:space-between;align-items:flex-start;flex-wrap:wrap;gap:8px;margin-bottom:10px;">
             <div>
               <div style="font-weight:800;font-size:0.95rem;color:#0F172A;">{{ exp.title }}</div>
               <div style="color:#4F46E5;font-weight:600;font-size:0.85rem;margin-top:2px;">{{ exp.company }}</div>
               <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:6px;">
                 <span style="background:#F1F5F9;color:#475569;font-size:0.72rem;padding:2px 10px;border-radius:20px;border:1px solid #E2E8F0;">
-                  <i class="fas fa-calendar me-1"></i>{{ exp.start_date }} – {{ exp.end_date }}
+                  <i class="fas fa-calendar me-1"></i>{{ exp.start_date }} – {{ 'Present' if exp.is_current else exp.end_date }}
                 </span>
                 <span style="background:rgba(79,70,229,0.07);color:#4F46E5;font-size:0.72rem;padding:2px 10px;border-radius:20px;">{{ exp.emp_type }}</span>
                 {% if exp.location %}
@@ -94,11 +102,18 @@
               </div>
             </div>
             <div>
+              <a href="{{ url_for('admin_edit_experience', eid=exp.id) }}" class="edit-btn" title="Edit">
+                <i class="fas fa-pencil me-1"></i>Edit
+              </a>
               <form method="POST" action="{{ url_for('admin_delete_experience', eid=exp.id) }}" style="display:inline;"
                     onsubmit="return confirm('Delete «{{ exp.title }}» at {{ exp.company }}?');">
                 <button type="submit" class="delete-btn"><i class="fas fa-trash me-1"></i>Delete</button>
               </form>
             </div>
+          </div>
+          <div style="font-size:0.72rem;color:#64748B;margin-bottom:8px;">
+            Order: {{ exp.order }} ·
+            {% if exp.is_current %}<span class="badge-success">Current</span>{% else %}Previous{% endif %}
           </div>
 
           {% if exp.resp_list() %}

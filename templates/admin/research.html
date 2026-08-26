@@ -4,6 +4,7 @@
 {% block page_subtitle %}Manage your published research and academic work{% endblock %}
 
 {% block content %}
+{% set submitted = form_data or {} %}
 <div class="admin-card">
   <div class="admin-card-header">
     <h6>
@@ -13,7 +14,7 @@
     <a href="{{ url_for('admin_edit_research', rid=papers[0].id) if papers else '#' }}"
        class="btn btn-outline-primary btn-sm"
        {% if not papers %}style="pointer-events:none;opacity:0.5;"{% endif %}>
-      <i class="fas fa-pencil me-1"></i> Edit Existing
+      <!-- <i class="fas fa-pencil me-1"></i> Edit Existing -->
     </a>
     <a href="{{ url_for('admin_research') }}#add-form" class="btn btn-primary btn-sm ms-2">
       <i class="fas fa-plus me-1"></i> Add Paper
@@ -113,48 +114,51 @@
         <div class="col-12">
           <label class="form-label">Paper Title *</label>
           <input type="text" name="title" class="form-control"
+                 value="{{ submitted.get('title', '') }}"
                  placeholder="e.g. AI-Driven Plant Disease Detection Using CNN" required />
         </div>
 
         <div class="col-sm-6">
           <label class="form-label">Journal / Conference *</label>
           <input type="text" name="journal" class="form-control"
+                 value="{{ submitted.get('journal', '') }}"
                  placeholder="e.g. IJCRT" required />
         </div>
 
         <div class="col-sm-6">
           <label class="form-label">Publication Date</label>
-          <input type="text" name="pub_date" class="form-control"
+          <input type="text" name="pub_date" class="form-control" value="{{ submitted.get('pub_date', '') }}"
                  placeholder="e.g. March 2024" />
         </div>
 
         <div class="col-12">
           <label class="form-label">Authors</label>
-          <input type="text" name="authors" class="form-control"
+          <input type="text" name="authors" class="form-control" value="{{ submitted.get('authors', '') }}"
                  placeholder="e.g. Narayan Kishor Adhude" />
         </div>
 
         <div class="col-12">
           <label class="form-label">Abstract</label>
           <textarea name="abstract" class="form-control" rows="5"
-                    placeholder="Write a summary of the research paper…"></textarea>
+                    placeholder="Write a summary of the research paper…">{{ submitted.get('abstract', '') }}</textarea>
         </div>
 
         <div class="col-12">
           <label class="form-label">Keywords</label>
-          <input type="text" name="keywords" class="form-control"
+          <input type="text" name="keywords" class="form-control" value="{{ submitted.get('keywords', '') }}"
                  placeholder="CNN, Deep Learning, TensorFlow (comma-separated)" />
         </div>
 
         <div class="col-sm-8">
           <label class="form-label">Paper / Certificate URL</label>
-          <input type="url" name="paper_url" class="form-control"
+          <input type="url" name="paper_url" class="form-control" value="{{ submitted.get('paper_url', '') }}"
                  placeholder="https://drive.google.com/… or https://ijcrt.org/…" />
         </div>
 
         <div class="col-sm-4">
           <label class="form-label">Display Order</label>
-          <input type="number" name="order" class="form-control" value="0" min="0" />
+          <input type="number" name="order" class="form-control" value="{{ submitted.get('order', '') }}" min="0" />
+          <small style="color:#94A3B8;font-size:0.72rem;display:block;margin-top:5px;">Leave blank for the next available order.</small>
         </div>
 
         <div class="col-12">
