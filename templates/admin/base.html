@@ -271,6 +271,11 @@
         <i class="fas fa-microscope"></i> Research
       </a>
     </div>
+    <div class="nav-item">
+      <a href="{{ url_for('admin_services') }}" class="nav-link {% if 'service' in request.endpoint %}active{% endif %}">
+        <i class="fas fa-briefcase"></i> Services
+      </a>
+    </div>
 
     <div class="nav-section-label">Settings</div>
     <div class="nav-item">

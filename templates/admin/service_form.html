@@ -1,0 +1,54 @@
+{% extends "admin/base.html" %}
+{% block title %}Edit Service{% endblock %}
+{% block page_title %}Edit Service{% endblock %}
+{% block page_subtitle %}Update your engineering or development service{% endblock %}
+
+{% set submitted = form_data or {} %}
+
+{% block content %}
+<form method="POST" action="{{ url_for('admin_edit_service', sid=service.id) }}">
+  <div class="row g-4">
+    <div class="col-lg-8">
+      <div class="admin-card mb-4">
+        <div class="admin-card-header">
+          <h6><i class="fas fa-briefcase me-2" style="color:#10B981;"></i>Service Details</h6>
+        </div>
+        <div class="admin-card-body">
+          <div class="mb-3">
+            <label class="form-label">Service Title *</label>
+            <input type="text" name="title" class="form-control"
+                   value="{{ submitted.get('title', service.title) }}" required />
+          </div>
+          <div class="mb-3">
+            <label class="form-label">Description *</label>
+            <textarea name="description" class="form-control" rows="5" required>{{ submitted.get('description', service.description) }}</textarea>
+          </div>
+          <div class="mb-3">
+            <label class="form-label">FontAwesome Icon Class *</label>
+            <input type="text" name="icon" class="form-control"
+                   value="{{ submitted.get('icon', service.icon) }}" required />
+          </div>
+          <div class="mb-3">
+            <label class="form-label">Display Order</label>
+            <input type="number" name="order" class="form-control" min="0"
+                   value="{{ submitted.get('order', service.order) }}" />
+          </div>
+          <div class="form-check">
+            <input class="form-check-input" type="checkbox" name="is_active" value="1"
+                   id="editServiceActive" {% if submitted.get('is_active', '1' if service.is_active else '0') == '1' %}checked{% endif %} />
+            <label class="form-check-label" for="editServiceActive">Active</label>
+            <input type="hidden" name="is_active" value="0" />
+          </div>
+        </div>
+      </div>
+
+      <div class="d-flex gap-3">
+        <button type="submit" class="btn btn-primary px-4">
+          <i class="fas fa-save me-2"></i>Update Service
+        </button>
+        <a href="{{ url_for('admin_services') }}" class="btn btn-outline-primary px-4">Cancel</a>
+      </div>
+    </div>
+  </div>
+</form>
+{% endblock %}

@@ -88,6 +88,16 @@ class Profile(db.Model):
     updated_at    = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
 
+class Service(db.Model):
+    __tablename__ = 'services'
+    id          = db.Column(db.Integer, primary_key=True)
+    title       = db.Column(db.String(300), nullable=False)
+    description = db.Column(db.Text, nullable=False)
+    icon        = db.Column(db.String(100), nullable=False)
+    order       = db.Column(db.Integer, default=0)
+    is_active   = db.Column(db.Boolean, default=True)
+
+
 class SocialLink(db.Model):
     __tablename__ = 'social_links'
     id       = db.Column(db.Integer, primary_key=True)
@@ -261,6 +271,22 @@ def seed_data():
             experience_months=2,
         )
         db.session.add(profile)
+
+    # Services
+    if not Service.query.first():
+        services = [
+            ('Full Stack Web Development', 'Building full stack web applications with the MERN Stack, Java, Python, ASP.NET, C#, and SQL.', 'fas fa-brain', 1),
+            ('AI & Machine Learning Solutions', 'Developing Python-based AI and Machine Learning applications, including Computer Vision and CNN-based solutions.', 'fas fa-layer-group', 2),
+            ('Backend & API Development', 'Developing Flask backends and REST APIs, with API integration and testing using Postman.', 'fab fa-python', 3),
+            ('Frontend & UI Development', 'Creating responsive interfaces with React, JavaScript, HTML, CSS, Tailwind CSS, and Bootstrap.', 'fas fa-server', 4),
+            ('DevOps & Containerization', 'Supporting containerized application environments with Docker and Kubernetes.', 'fas fa-chart-line', 5),
+            ('Java Development', 'Developing software solutions with Java while applying object-oriented programming and problem-solving skills.', 'fas fa-database', 6),
+            ('Python Development', 'Building Python applications, Flask backends, and Python-based AI/ML solutions.', 'fab fa-python', 7),
+            ('ASP.NET & C# Development', 'Developing web applications with ASP.NET, C#, SQL, and responsive Bootstrap interfaces.', 'fas fa-windows', 8),
+            ('Figma & Responsive UI Implementation', 'Translating Figma designs into responsive frontend interfaces using HTML, CSS, React, and Tailwind CSS.', 'fas fa-robot', 9),
+        ]
+        for title, description, icon, order in services:
+            db.session.add(Service(title=title, description=description, icon=icon, order=order, is_active=True))
 
     # Social Links
     if not SocialLink.query.first():
@@ -474,6 +500,10 @@ def index():
     certifications = Certification.query.order_by(Certification.order).all()
     achievements  = Achievement.query.order_by(Achievement.order).all()
     research      = Research.query.order_by(Research.order).all()
+    services      = Service.query.filter_by(is_active=True).order_by(Service.order).all()
+    project_count = Project.query.count()
+    certification_count = Certification.query.count()
+    technology_count = Skill.query.count()
 
     # Group skills by category
     skill_categories = {}
@@ -496,6 +526,10 @@ def index():
         cert_categories=cert_categories,
         achievements=achievements,
         research=research,
+        services=services,
+        project_count=project_count,
+        certification_count=certification_count,
+        technology_count=technology_count,
         current_year=datetime.utcnow().year,
     )
 
@@ -588,6 +622,98 @@ def admin_profile():
         flash('Profile updated successfully!', 'success')
         return redirect(url_for('admin_profile'))
     return render_template('admin/profile.html', profile=profile)
+
+
+# ── Admin: Services ───────────────────────────────────────────────────────────
+
+@app.route('/admin/services')
+@login_required
+def admin_services():
+    services = Service.query.order_by(Service.order).all()
+    return render_template('admin/services.html', services=services, form_data={})
+
+
+@app.route('/admin/services/add', methods=['POST'])
+@login_required
+def admin_add_service():
+    title = request.form.get('title', '').strip()
+    description = request.form.get('description', '').strip()
+    icon = request.form.get('icon', '').strip()
+    order_raw = request.form.get('order', '').strip()
+    services = Service.query.order_by(Service.order).all()
+
+    if not title or not description or not icon:
+        flash('Title, description, and icon are required.', 'danger')
+        return render_template('admin/services.html', services=services, form_data=request.form)
+
+    if order_raw:
+        try:
+            order = int(order_raw)
+        except ValueError:
+            flash('Display order must be a valid integer.', 'danger')
+            return render_template('admin/services.html', services=services, form_data=request.form)
+    else:
+        max_order = db.session.query(db.func.max(Service.order)).scalar()
+        order = (max_order if max_order is not None else 0) + 1
+
+    service = Service(
+        title=title,
+        description=description,
+        icon=icon,
+        order=order,
+        is_active=request.form.get('is_active', '1') == '1',
+    )
+    db.session.add(service)
+    db.session.commit()
+    flash('Service added!', 'success')
+    return redirect(url_for('admin_services'))
+
+
+@app.route('/admin/services/edit/<int:sid>', methods=['GET', 'POST'])
+@login_required
+def admin_edit_service(sid):
+    service = Service.query.get_or_404(sid)
+    form_data = request.form if request.method == 'POST' else {}
+
+    if request.method == 'POST':
+        title = request.form.get('title', '').strip()
+        description = request.form.get('description', '').strip()
+        icon = request.form.get('icon', '').strip()
+        order_raw = request.form.get('order', '').strip()
+
+        if not title or not description or not icon:
+            flash('Title, description, and icon are required.', 'danger')
+            return render_template('admin/service_form.html', service=service, form_data=form_data)
+
+        if order_raw:
+            try:
+                order = int(order_raw)
+            except ValueError:
+                flash('Display order must be a valid integer.', 'danger')
+                return render_template('admin/service_form.html', service=service, form_data=form_data)
+        else:
+            order = service.order
+
+        service.title = title
+        service.description = description
+        service.icon = icon
+        service.order = order
+        service.is_active = request.form.get('is_active') == '1'
+        db.session.commit()
+        flash('Service updated!', 'success')
+        return redirect(url_for('admin_services'))
+
+    return render_template('admin/service_form.html', service=service, form_data=form_data)
+
+
+@app.route('/admin/services/delete/<int:sid>', methods=['POST'])
+@login_required
+def admin_delete_service(sid):
+    service = Service.query.get_or_404(sid)
+    db.session.delete(service)
+    db.session.commit()
+    flash('Service deleted.', 'success')
+    return redirect(url_for('admin_services'))
 
 
 # ── Admin: Education ──────────────────────────────────────────────────────────
