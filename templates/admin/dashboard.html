@@ -45,6 +45,42 @@
   </div>
   <div class="col-6 col-xl-2">
     <div class="stat-card">
+      <div class="stat-card-icon" style="background:rgba(14,165,233,0.1);color:#0EA5E9;">
+        <i class="fas fa-graduation-cap"></i>
+      </div>
+      <div class="stat-card-num">{{ stats.education }}</div>
+      <div class="stat-card-label">Education</div>
+    </div>
+  </div>
+  <div class="col-6 col-xl-2">
+    <div class="stat-card">
+      <div class="stat-card-icon" style="background:rgba(16,185,129,0.1);color:#10B981;">
+        <i class="fas fa-briefcase"></i>
+      </div>
+      <div class="stat-card-num">{{ stats.experience }}</div>
+      <div class="stat-card-label">Experience</div>
+    </div>
+  </div>
+  <div class="col-6 col-xl-2">
+    <div class="stat-card">
+      <div class="stat-card-icon" style="background:rgba(6,182,212,0.1);color:#06B6D4;">
+        <i class="fas fa-microscope"></i>
+      </div>
+      <div class="stat-card-num">{{ stats.research }}</div>
+      <div class="stat-card-label">Research</div>
+    </div>
+  </div>
+  <div class="col-6 col-xl-2">
+    <div class="stat-card">
+      <div class="stat-card-icon" style="background:rgba(124,58,237,0.1);color:#7C3AED;">
+        <i class="fas fa-briefcase"></i>
+      </div>
+      <div class="stat-card-num">{{ stats.services }}</div>
+      <div class="stat-card-label">Services</div>
+    </div>
+  </div>
+  <div class="col-6 col-xl-2">
+    <div class="stat-card">
       <div class="stat-card-icon" style="background:rgba(239,68,68,0.1);color:#EF4444;">
         <i class="fas fa-inbox"></i>
       </div>
@@ -84,6 +120,15 @@
           </a>
           <a href="{{ url_for('admin_achievements') }}" class="btn btn-outline-primary btn-sm text-start">
             <i class="fas fa-plus me-2"></i>Add Achievement
+          </a>
+          <a href="{{ url_for('admin_add_education') }}" class="btn btn-outline-primary btn-sm text-start">
+            <i class="fas fa-plus me-2"></i>Add Education
+          </a>
+          <a href="{{ url_for('admin_research') }}" class="btn btn-outline-primary btn-sm text-start">
+            <i class="fas fa-microscope me-2"></i>Manage Research
+          </a>
+          <a href="{{ url_for('admin_services') }}" class="btn btn-outline-primary btn-sm text-start">
+            <i class="fas fa-briefcase me-2"></i>Manage Services
           </a>
           <a href="{{ url_for('admin_profile') }}" class="btn btn-outline-primary btn-sm text-start">
             <i class="fas fa-user-edit me-2"></i>Edit Profile
@@ -158,6 +203,10 @@
     ('Manage Certifications','fas fa-certificate',  'admin_certifications','#F59E0B'),
     ('Manage Achievements',  'fas fa-trophy',       'admin_achievements',  '#7C3AED'),
     ('Social Links',         'fas fa-share-nodes',  'admin_social',        '#EF4444'),
+    ('Manage Education',     'fas fa-graduation-cap','admin_education',    '#0EA5E9'),
+    ('Manage Research',      'fas fa-microscope',    'admin_research',     '#06B6D4'),
+    ('Manage Services',      'fas fa-briefcase',     'admin_services',     '#7C3AED'),
+    ('View Messages',        'fas fa-inbox',         'admin_messages',     '#EF4444'),
   ] %}
   {% for label, icon, endpoint, color in shortcuts %}
   <div class="col-6 col-md-4 col-lg-2">

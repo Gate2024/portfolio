@@ -585,6 +585,10 @@ def admin_dashboard():
         'skills':         Skill.query.count(),
         'certifications': Certification.query.count(),
         'achievements':   Achievement.query.count(),
+        'education':      Education.query.count(),
+        'experience':     Experience.query.count(),
+        'research':       Research.query.count(),
+        'services':       Service.query.count(),
         'messages':       Contact.query.count(),
         'unread':         Contact.query.filter_by(is_read=False).count(),
     }
