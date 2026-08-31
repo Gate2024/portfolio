@@ -1,0 +1,51 @@
+{% extends "admin/base.html" %}
+{% block title %}Edit Language{% endblock %}
+{% block page_title %}Edit Language{% endblock %}
+{% block page_subtitle %}Update a language shown on your portfolio{% endblock %}
+
+{% set submitted = form_data or {} %}
+
+{% block content %}
+<form method="POST" action="{{ url_for('admin_edit_language', lid=language.id) }}">
+  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
+  <div class="row g-4">
+    <div class="col-lg-8">
+      <div class="admin-card mb-4">
+        <div class="admin-card-header">
+          <h6><i class="fas fa-language me-2" style="color:#06B6D4;"></i>Language Details</h6>
+        </div>
+        <div class="admin-card-body">
+          <div class="mb-3">
+            <label class="form-label">Language Name *</label>
+            <input type="text" name="name" class="form-control"
+                   value="{{ submitted.get('name', language.name) }}" required />
+          </div>
+          <div class="mb-3">
+            <label class="form-label">Proficiency *</label>
+            <input type="text" name="proficiency" class="form-control"
+                   value="{{ submitted.get('proficiency', language.proficiency) }}" required />
+          </div>
+          <div class="mb-3">
+            <label class="form-label">Display Order</label>
+            <input type="number" name="order" class="form-control"
+                   value="{{ submitted.get('order', language.order) }}" />
+          </div>
+          <div class="form-check">
+            <input class="form-check-input" type="checkbox" name="is_active" value="1"
+                   id="editLanguageActive" {% if submitted.get('is_active', '1' if language.is_active else '0') == '1' %}checked{% endif %} />
+            <label class="form-check-label" for="editLanguageActive">Active</label>
+            <input type="hidden" name="is_active" value="0" />
+          </div>
+        </div>
+      </div>
+
+      <div class="d-flex gap-3">
+        <button type="submit" class="btn btn-primary px-4">
+          <i class="fas fa-save me-2"></i>Update Language
+        </button>
+        <a href="{{ url_for('admin_languages') }}" class="btn btn-outline-primary px-4">Cancel</a>
+      </div>
+    </div>
+  </div>
+</form>
+{% endblock %}

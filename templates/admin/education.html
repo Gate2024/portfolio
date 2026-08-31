@@ -46,6 +46,7 @@
               </a>
               <form method="POST" action="{{ url_for('admin_delete_education', eid=edu.id) }}" style="display:inline;"
                     onsubmit="return confirm('Delete «{{ edu.degree }}»? This cannot be undone.');">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
                 <button type="submit" class="delete-btn" title="Delete">
                   <i class="fas fa-trash"></i>
                 </button>

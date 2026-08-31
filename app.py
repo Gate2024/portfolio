@@ -1,11 +1,13 @@
 import os
 import json
+import re
 from datetime import datetime
 from functools import wraps
 from urllib.parse import urlparse
 from flask import (Flask, render_template, request, redirect,
                    url_for, flash, jsonify, session, send_from_directory)
 from flask_sqlalchemy import SQLAlchemy
+from flask_wtf.csrf import CSRFError, CSRFProtect
 from flask_login import (LoginManager, UserMixin, login_user,
                          logout_user, login_required, current_user)
 from werkzeug.security import generate_password_hash, check_password_hash
@@ -30,6 +32,7 @@ os.makedirs(app.config['UPLOAD_FOLDER'], exist_ok=True)
 ALLOWED_EXTENSIONS = {'png', 'jpg', 'jpeg', 'gif', 'webp', 'pdf', 'svg'}
 
 db = SQLAlchemy(app)
+csrf = CSRFProtect(app)
 login_manager = LoginManager(app)
 login_manager.login_view = 'admin_login'
 login_manager.login_message_category = 'info'
@@ -94,6 +97,15 @@ class Service(db.Model):
     title       = db.Column(db.String(300), nullable=False)
     description = db.Column(db.Text, nullable=False)
     icon        = db.Column(db.String(100), nullable=False)
+    order       = db.Column(db.Integer, default=0)
+    is_active   = db.Column(db.Boolean, default=True)
+
+
+class Language(db.Model):
+    __tablename__ = 'languages'
+    id          = db.Column(db.Integer, primary_key=True)
+    name        = db.Column(db.String(100), nullable=False)
+    proficiency = db.Column(db.String(100), nullable=False)
     order       = db.Column(db.Integer, default=0)
     is_active   = db.Column(db.Boolean, default=True)
 
@@ -287,6 +299,17 @@ def seed_data():
         ]
         for title, description, icon, order in services:
             db.session.add(Service(title=title, description=description, icon=icon, order=order, is_active=True))
+
+    # Languages
+    if not Language.query.first():
+        languages = [
+            ('English', '', 1),
+            ('Hindi', '', 2),
+            ('Marathi', '', 3),
+            ('Japanese', 'Foundation', 4),
+        ]
+        for name, proficiency, order in languages:
+            db.session.add(Language(name=name, proficiency=proficiency, order=order, is_active=True))
 
     # Social Links
     if not SocialLink.query.first():
@@ -501,6 +524,7 @@ def index():
     achievements  = Achievement.query.order_by(Achievement.order).all()
     research      = Research.query.order_by(Research.order).all()
     services      = Service.query.filter_by(is_active=True).order_by(Service.order).all()
+    languages     = Language.query.filter_by(is_active=True).order_by(Language.order).all()
     project_count = Project.query.count()
     certification_count = Certification.query.count()
     technology_count = Skill.query.count()
@@ -527,6 +551,7 @@ def index():
         achievements=achievements,
         research=research,
         services=services,
+        languages=languages,
         project_count=project_count,
         certification_count=certification_count,
         technology_count=technology_count,
@@ -543,6 +568,9 @@ def contact():
 
     if not all([name, email, message]):
         return jsonify({'success': False, 'message': 'Please fill in all required fields.'}), 400
+
+    if not re.fullmatch(r'[^@\s]+@[^@\s]+\.[^@\s]+', email):
+        return jsonify({'success': False, 'message': 'Please enter a valid email address.'}), 400
 
     msg = Contact(name=name, email=email, subject=subject, message=message)
     db.session.add(msg)
@@ -718,6 +746,94 @@ def admin_delete_service(sid):
     db.session.commit()
     flash('Service deleted.', 'success')
     return redirect(url_for('admin_services'))
+
+
+# ── Admin: Languages ──────────────────────────────────────────────────────────
+
+@app.route('/admin/languages')
+@login_required
+def admin_languages():
+    languages = Language.query.order_by(Language.order).all()
+    return render_template('admin/languages.html', languages=languages, form_data={})
+
+
+@app.route('/admin/languages/add', methods=['POST'])
+@login_required
+def admin_add_language():
+    name = request.form.get('name', '').strip()
+    proficiency = request.form.get('proficiency', '').strip()
+    order_raw = request.form.get('order', '').strip()
+    languages = Language.query.order_by(Language.order).all()
+
+    if not name or not proficiency:
+        flash('Language name and proficiency are required.', 'danger')
+        return render_template('admin/languages.html', languages=languages, form_data=request.form)
+
+    if order_raw:
+        try:
+            order = int(order_raw)
+        except ValueError:
+            flash('Display order must be a valid integer.', 'danger')
+            return render_template('admin/languages.html', languages=languages, form_data=request.form)
+    else:
+        max_order = db.session.query(db.func.max(Language.order)).scalar()
+        order = (max_order if max_order is not None else 0) + 1
+
+    language = Language(
+        name=name,
+        proficiency=proficiency,
+        order=order,
+        is_active=request.form.get('is_active', '1') == '1',
+    )
+    db.session.add(language)
+    db.session.commit()
+    flash('Language added!', 'success')
+    return redirect(url_for('admin_languages'))
+
+
+@app.route('/admin/languages/edit/<int:lid>', methods=['GET', 'POST'])
+@login_required
+def admin_edit_language(lid):
+    language = Language.query.get_or_404(lid)
+    form_data = request.form if request.method == 'POST' else {}
+
+    if request.method == 'POST':
+        name = request.form.get('name', '').strip()
+        proficiency = request.form.get('proficiency', '').strip()
+        order_raw = request.form.get('order', '').strip()
+
+        if not name or not proficiency:
+            flash('Language name and proficiency are required.', 'danger')
+            return render_template('admin/language_form.html', language=language, form_data=form_data)
+
+        if order_raw:
+            try:
+                order = int(order_raw)
+            except ValueError:
+                flash('Display order must be a valid integer.', 'danger')
+                return render_template('admin/language_form.html', language=language, form_data=form_data)
+        else:
+            order = language.order
+
+        language.name = name
+        language.proficiency = proficiency
+        language.order = order
+        language.is_active = request.form.get('is_active') == '1'
+        db.session.commit()
+        flash('Language updated!', 'success')
+        return redirect(url_for('admin_languages'))
+
+    return render_template('admin/language_form.html', language=language, form_data=form_data)
+
+
+@app.route('/admin/languages/delete/<int:lid>', methods=['POST'])
+@login_required
+def admin_delete_language(lid):
+    language = Language.query.get_or_404(lid)
+    db.session.delete(language)
+    db.session.commit()
+    flash('Language deleted.', 'success')
+    return redirect(url_for('admin_languages'))
 
 
 # ── Admin: Education ──────────────────────────────────────────────────────────
@@ -1234,9 +1350,27 @@ def admin_delete_research(rid):
 @login_required
 def admin_messages():
     messages = Contact.query.order_by(Contact.created_at.desc()).all()
-    Contact.query.update({'is_read': True})
-    db.session.commit()
     return render_template('admin/messages.html', messages=messages)
+
+
+@app.route('/admin/messages/<int:mid>/read', methods=['POST'])
+@login_required
+def admin_mark_message_read(mid):
+    message = Contact.query.get_or_404(mid)
+    message.is_read = True
+    db.session.commit()
+    flash('Message marked as read.', 'success')
+    return redirect(url_for('admin_messages'))
+
+
+@app.route('/admin/messages/<int:mid>/unread', methods=['POST'])
+@login_required
+def admin_mark_message_unread(mid):
+    message = Contact.query.get_or_404(mid)
+    message.is_read = False
+    db.session.commit()
+    flash('Message marked as unread.', 'success')
+    return redirect(url_for('admin_messages'))
 
 
 @app.route('/admin/messages/delete/<int:mid>', methods=['POST'])
@@ -1456,6 +1590,13 @@ def page_not_found(e):
 @app.errorhandler(500)
 def server_error(e):
     return render_template('500.html'), 500
+
+
+@app.errorhandler(CSRFError)
+def handle_csrf_error(e):
+    if request.path == '/contact':
+        return jsonify({'success': False, 'message': 'Invalid or missing CSRF token.'}), 400
+    return 'Invalid or missing CSRF token.', 400
 
 
 # ─── App Initialization ───────────────────────────────────────────────────────

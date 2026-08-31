@@ -52,12 +52,28 @@
             <i class="fas fa-clock me-1"></i>{{ msg.created_at.strftime('%d %b %Y, %I:%M %p') }}
           </span>
           <div style="display:flex;gap:6px;">
+            {% if msg.is_read %}
+            <form method="POST" action="{{ url_for('admin_mark_message_unread', mid=msg.id) }}" style="display:inline;">
+              <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
+              <button type="submit" class="btn btn-outline-primary btn-sm" style="font-size:0.72rem;padding:4px 10px;">
+                <i class="fas fa-envelope me-1"></i>Mark as Unread
+              </button>
+            </form>
+            {% else %}
+            <form method="POST" action="{{ url_for('admin_mark_message_read', mid=msg.id) }}" style="display:inline;">
+              <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
+              <button type="submit" class="btn btn-outline-primary btn-sm" style="font-size:0.72rem;padding:4px 10px;">
+                <i class="fas fa-envelope-open me-1"></i>Mark as Read
+              </button>
+            </form>
+            {% endif %}
             <a href="mailto:{{ msg.email }}?subject=Re: {{ msg.subject or 'Your message' }}"
                class="btn btn-outline-primary btn-sm" style="font-size:0.72rem;padding:4px 10px;">
               <i class="fas fa-reply me-1"></i>Reply
             </a>
             <form method="POST" action="{{ url_for('admin_delete_message', mid=msg.id) }}" style="display:inline;"
                   onsubmit="return confirm('Delete this message?');">
+              <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
               <button type="submit" class="delete-btn" style="padding:4px 8px;">
                 <i class="fas fa-trash"></i>
               </button>

@@ -241,6 +241,11 @@
       </a>
     </div>
     <div class="nav-item">
+      <a href="{{ url_for('admin_languages') }}" class="nav-link {% if 'language' in request.endpoint %}active{% endif %}">
+        <i class="fas fa-language"></i> Languages
+      </a>
+    </div>
+    <div class="nav-item">
       <a href="{{ url_for('admin_projects') }}" class="nav-link {% if 'project' in request.endpoint %}active{% endif %}">
         <i class="fas fa-code-branch"></i> Projects
       </a>

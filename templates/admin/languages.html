@@ -1,0 +1,94 @@
+{% extends "admin/base.html" %}
+{% block title %}Languages{% endblock %}
+{% block page_title %}Languages{% endblock %}
+{% block page_subtitle %}Manage the languages shown on your portfolio{% endblock %}
+
+{% set submitted = form_data or {} %}
+
+{% block content %}
+<div class="row g-4">
+  <div class="col-lg-4">
+    <div class="admin-card" style="position:sticky;top:80px;">
+      <div class="admin-card-header">
+        <h6><i class="fas fa-plus me-2" style="color:#4F46E5;"></i>Add Language</h6>
+      </div>
+      <div class="admin-card-body">
+        <form method="POST" action="{{ url_for('admin_add_language') }}">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
+          <div class="mb-3">
+            <label class="form-label">Language Name *</label>
+            <input type="text" name="name" class="form-control" value="{{ submitted.get('name', '') }}"
+                   placeholder="e.g. English" required />
+          </div>
+          <div class="mb-3">
+            <label class="form-label">Proficiency *</label>
+            <input type="text" name="proficiency" class="form-control" value="{{ submitted.get('proficiency', '') }}"
+                   placeholder="e.g. Fluent" required />
+          </div>
+          <div class="mb-3">
+            <label class="form-label">Display Order</label>
+            <input type="number" name="order" class="form-control" value="{{ submitted.get('order', '') }}" />
+            <small style="color:#94A3B8;font-size:0.72rem;display:block;margin-top:5px;">Leave blank for the next available order.</small>
+          </div>
+          <div class="form-check mb-3">
+            <input class="form-check-input" type="checkbox" name="is_active" value="1"
+                   id="addLanguageActive" {% if submitted.get('is_active', '1') == '1' %}checked{% endif %} />
+            <label class="form-check-label" for="addLanguageActive">Active</label>
+            <input type="hidden" name="is_active" value="0" />
+          </div>
+          <button type="submit" class="btn btn-primary w-100">
+            <i class="fas fa-plus me-2"></i>Add Language
+          </button>
+        </form>
+      </div>
+    </div>
+  </div>
+
+  <div class="col-lg-8">
+    <div class="admin-card">
+      <div class="admin-card-header">
+        <h6><i class="fas fa-language me-2" style="color:#06B6D4;"></i>All Languages
+          <span style="background:#ECFEFF;color:#0891B2;padding:2px 10px;border-radius:20px;font-size:0.72rem;margin-left:8px;font-weight:700;">{{ languages|length }}</span>
+        </h6>
+      </div>
+      <div class="admin-card-body p-0">
+        {% if languages %}
+        {% for language in languages %}
+        <div style="display:flex;align-items:center;padding:14px 20px;border-bottom:1px solid #F8FAFC;gap:14px;">
+          <div style="width:42px;height:42px;min-width:42px;background:#ECFEFF;color:#0891B2;border-radius:10px;display:flex;align-items:center;justify-content:center;font-size:1rem;">
+            <i class="fas fa-language"></i>
+          </div>
+          <div style="flex:1;min-width:0;">
+            <div style="font-weight:700;font-size:0.88rem;color:#0F172A;margin-bottom:3px;">{{ language.name }}</div>
+            <div style="color:#64748B;font-size:0.78rem;">{{ language.proficiency or '—' }} · Order: {{ language.order }}</div>
+          </div>
+          <div>
+            {% if language.is_active %}
+            <span class="badge-success">Active</span>
+            {% else %}
+            <span style="background:#F1F5F9;color:#94A3B8;padding:3px 10px;border-radius:20px;font-size:0.72rem;">Inactive</span>
+            {% endif %}
+          </div>
+          <div style="white-space:nowrap;">
+            <a href="{{ url_for('admin_edit_language', lid=language.id) }}" class="edit-btn" title="Edit">
+              <i class="fas fa-pencil"></i>
+            </a>
+            <form method="POST" action="{{ url_for('admin_delete_language', lid=language.id) }}" style="display:inline;"
+                  onsubmit="return confirm('Delete {{ language.name }}?');">
+              <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
+              <button type="submit" class="delete-btn" title="Delete"><i class="fas fa-trash"></i></button>
+            </form>
+          </div>
+        </div>
+        {% endfor %}
+        {% else %}
+        <div class="text-center py-5" style="color:#94A3B8;">
+          <i class="fas fa-language fa-2x mb-3 d-block"></i>
+          <p style="font-size:0.88rem;">No languages added yet.</p>
+        </div>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}

@@ -258,7 +258,7 @@
               <span class="detail-icon"><i class="fas fa-language"></i></span>
               <div>
                 <span class="detail-label">Languages</span>
-                <span class="detail-value">English, Hindi, Marathi, Japanese (Foundation)</span>
+                <span class="detail-value">{% for language in languages %}{{ language.name }}{% if language.proficiency %} ({{ language.proficiency }}){% endif %}{% if not loop.last %}, {% endif %}{% endfor %}</span>
               </div>
             </div>
           </div>
@@ -741,6 +741,7 @@
         <div class="contact-form-card glass-card">
           <div id="form-alert" class="form-alert d-none"></div>
           <form id="contactForm">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
             <div class="row g-3">
               <div class="col-sm-6">
                 <div class="form-group">

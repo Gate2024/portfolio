@@ -13,6 +13,7 @@
       </div>
       <div class="admin-card-body">
         <form method="POST" action="{{ url_for('admin_add_service') }}">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
           <div class="mb-3">
             <label class="form-label">Service Title *</label>
             <input type="text" name="title" class="form-control" value="{{ submitted.get('title', '') }}"
@@ -82,6 +83,7 @@
             </a>
             <form method="POST" action="{{ url_for('admin_delete_service', sid=service.id) }}" style="display:inline;"
                   onsubmit="return confirm('Delete {{ service.title }}?');">
+              <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
               <button type="submit" class="delete-btn"><i class="fas fa-trash"></i></button>
             </form>
           </div>

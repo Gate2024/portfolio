@@ -83,6 +83,7 @@
             </a>
             <form method="POST" action="{{ url_for('admin_delete_research', rid=paper.id) }}"
                   onsubmit="return confirm('Delete this research paper? This cannot be undone.');">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
               <button type="submit" class="btn btn-danger btn-sm w-100" style="font-size:0.78rem;">
                 <i class="fas fa-trash me-1"></i>Delete
               </button>
@@ -109,6 +110,7 @@
   </div>
   <div class="admin-card-body">
     <form method="POST" action="{{ url_for('admin_add_research') }}">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
       <div class="row g-3">
 
         <div class="col-12">

@@ -15,6 +15,7 @@
       </div>
       <div class="admin-card-body">
         <form method="POST" action="{{ url_for('admin_add_achievement') }}">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
           <div class="mb-3">
             <label class="form-label">Achievement Title *</label>
             <input type="text" name="title" class="form-control"
@@ -101,6 +102,7 @@
             </a>
             <form method="POST" action="{{ url_for('admin_delete_achievement', aid=ach.id) }}" style="display:inline;"
                   onsubmit="return confirm('Delete this achievement?');">
+              <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
               <button type="submit" class="delete-btn"><i class="fas fa-trash"></i></button>
             </form>
           </div>

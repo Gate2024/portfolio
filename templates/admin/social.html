@@ -15,6 +15,7 @@
       </div>
       <div class="admin-card-body">
         <form method="POST">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
           <input type="hidden" name="action" value="add" />
           <div class="mb-3">
             <label class="form-label">Platform Name *</label>
@@ -102,6 +103,7 @@
             </a>
             <form method="POST" style="display:inline;"
                   onsubmit="return confirm('Remove {{ link.platform }} link?');">
+              <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
               <input type="hidden" name="action" value="delete" />
               <input type="hidden" name="id" value="{{ link.id }}" />
               <button type="submit" class="delete-btn"><i class="fas fa-trash"></i></button>
