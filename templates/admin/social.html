@@ -102,7 +102,7 @@
               <i class="fas fa-pencil"></i>
             </a>
             <form method="POST" style="display:inline;"
-                  onsubmit="return confirm('Remove {{ link.platform }} link?');">
+                  data-confirm="Remove {{ link.platform }} link?" onsubmit="return confirm(this.dataset.confirm);">
               <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
               <input type="hidden" name="action" value="delete" />
               <input type="hidden" name="id" value="{{ link.id }}" />

@@ -6,12 +6,11 @@
 {% set submitted = form_data or {} %}
 
 {% block content %}
-<form method="POST" action="{{ url_for('admin_edit_research', rid=paper.id) }}">
-  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
-  <div class="row g-4">
+<div class="row g-4">
 
     <!-- Main form -->
-    <div class="col-lg-8">
+    <form id="researchEditForm" class="col-lg-8" method="POST" action="{{ url_for('admin_edit_research', rid=paper.id) }}">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
       <div class="admin-card mb-4">
         <div class="admin-card-header">
           <h6><i class="fas fa-file-alt me-2" style="color:#4F46E5;"></i>Paper Details</h6>
@@ -66,7 +65,7 @@
           </div>
         </div>
       </div>
-    </div>
+    </form>
 
     <!-- Side: URL + Order + Actions -->
     <div class="col-lg-4">
@@ -78,7 +77,7 @@
         <div class="admin-card-body">
           <div class="mb-3">
             <label class="form-label">Published Paper URL</label>
-            <input type="url" name="paper_url" class="form-control"
+            <input type="url" name="paper_url" form="researchEditForm" class="form-control"
                    value="{{ submitted.get('paper_url', paper.paper_url or '') }}"
                    placeholder="https://drive.google.com/… or https://ijcrt.org/…" />
             <small style="color:#94A3B8;font-size:0.72rem;">
@@ -100,7 +99,7 @@
         </div>
         <div class="admin-card-body">
           <label class="form-label">Order</label>
-          <input type="number" name="order" class="form-control"
+          <input type="number" name="order" form="researchEditForm" class="form-control"
                  value="{{ submitted.get('order', paper.order) }}" min="0" />
           <small style="color:#94A3B8;font-size:0.72rem;">
             Lower number = shown first on portfolio.
@@ -109,7 +108,7 @@
       </div>
 
       <div class="d-grid gap-2">
-        <button type="submit" class="btn btn-primary">
+        <button type="submit" form="researchEditForm" class="btn btn-primary">
           <i class="fas fa-save me-2"></i>Update Paper
         </button>
         <a href="{{ url_for('admin_research') }}" class="btn btn-outline-primary">
@@ -126,5 +125,4 @@
 
     </div>
   </div>
-</form>
 {% endblock %}

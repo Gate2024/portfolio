@@ -107,7 +107,8 @@
                 <i class="fas fa-pencil me-1"></i>Edit
               </a>
               <form method="POST" action="{{ url_for('admin_delete_experience', eid=exp.id) }}" style="display:inline;"
-                    onsubmit="return confirm('Delete «{{ exp.title }}» at {{ exp.company }}?');">
+                    data-confirm="Delete «{{ exp.title }}» at {{ exp.company }}?"
+                    onsubmit="return confirm(this.dataset.confirm);">
                 <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
                 <button type="submit" class="delete-btn"><i class="fas fa-trash me-1"></i>Delete</button>
               </form>

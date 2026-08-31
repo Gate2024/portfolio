@@ -82,7 +82,7 @@
               <i class="fas fa-pencil"></i>
             </a>
             <form method="POST" action="{{ url_for('admin_delete_service', sid=service.id) }}" style="display:inline;"
-                  onsubmit="return confirm('Delete {{ service.title }}?');">
+                  data-confirm="Delete {{ service.title }}?" onsubmit="return confirm(this.dataset.confirm);">
               <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
               <button type="submit" class="delete-btn"><i class="fas fa-trash"></i></button>
             </form>

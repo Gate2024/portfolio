@@ -19,3 +19,4 @@ build/
 *.egg-info/
 .pytest_cache/
 migrations/versions/*.py
+db-backup/

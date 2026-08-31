@@ -3,6 +3,11 @@
 {% block page_title %}Skills{% endblock %}
 {% block page_subtitle %}Manage your technical skills and proficiency levels{% endblock %}
 
+{% set submitted = form_data or {} %}
+{% set selected_category = submitted.get('category', 'Programming Languages') %}
+{% set edit_submitted = edit_form_data or {} %}
+{% set edit_category = edit_submitted.get('category', '') %}
+
 {% block content %}
 <div class="row g-4">
 
@@ -17,28 +22,28 @@
           <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
           <div class="mb-3">
             <label class="form-label">Skill Name *</label>
-            <input type="text" name="name" class="form-control" placeholder="e.g. TensorFlow" required />
+            <input type="text" name="name" class="form-control" value="{{ submitted.get('name', '') }}" placeholder="e.g. TensorFlow" required />
           </div>
           <div class="mb-3">
             <label class="form-label">Category *</label>
             <select name="category" class="form-select">
-              <option value="Programming Languages">Programming Languages</option>
-              <option value="AI / ML">AI / ML</option>
-              <option value="Web Development">Web Development</option>
-              <option value="Databases">Databases</option>
-              <option value="Cloud & DevOps">Cloud & DevOps</option>
-              <option value="CS Fundamentals">CS Fundamentals</option>
-              <option value="Tools">Tools</option>
+              <option value="Programming Languages" {% if selected_category == 'Programming Languages' %}selected{% endif %}>Programming Languages</option>
+              <option value="AI / ML" {% if selected_category == 'AI / ML' %}selected{% endif %}>AI / ML</option>
+              <option value="Web Development" {% if selected_category == 'Web Development' %}selected{% endif %}>Web Development</option>
+              <option value="Databases" {% if selected_category == 'Databases' %}selected{% endif %}>Databases</option>
+              <option value="Cloud & DevOps" {% if selected_category == 'Cloud & DevOps' %}selected{% endif %}>Cloud & DevOps</option>
+              <option value="CS Fundamentals" {% if selected_category == 'CS Fundamentals' %}selected{% endif %}>CS Fundamentals</option>
+              <option value="Tools" {% if selected_category == 'Tools' %}selected{% endif %}>Tools</option>
             </select>
           </div>
           <div class="mb-3">
-            <label class="form-label">Proficiency: <span id="profVal">80</span>%</label>
+            <label class="form-label">Proficiency: <span id="profVal">{{ submitted.get('proficiency', '80') }}</span>%</label>
             <input type="range" name="proficiency" class="form-range" min="10" max="100" step="5"
-                   value="80" oninput="document.getElementById('profVal').textContent=this.value" />
+                   value="{{ submitted.get('proficiency', '80') }}" oninput="document.getElementById('profVal').textContent=this.value" />
           </div>
           <div class="mb-3">
             <label class="form-label">Display Order</label>
-            <input type="number" name="order" class="form-control" value="0" min="0" />
+            <input type="number" name="order" class="form-control" value="{{ submitted.get('order', '0') }}" min="0" />
           </div>
           <button type="submit" class="btn btn-primary w-100">
             <i class="fas fa-plus me-2"></i>Add Skill
@@ -75,11 +80,17 @@
             </div>
           </div>
           <div style="display:flex;gap:4px;align-items:center;">
-            <button class="edit-btn" onclick="openEditSkill({{ skill.id }}, '{{ skill.name }}', '{{ skill.category }}', {{ skill.proficiency }}, {{ skill.order }})" title="Edit">
+            <button type="button" class="edit-btn edit-skill-btn"
+                    data-skill-id="{{ skill.id }}"
+                    data-skill-name="{{ skill.name }}"
+                    data-skill-category="{{ skill.category }}"
+                    data-skill-proficiency="{{ skill.proficiency }}"
+                    data-skill-order="{{ skill.order }}"
+                    title="Edit">
               <i class="fas fa-pencil"></i>
             </button>
             <form method="POST" action="{{ url_for('admin_delete_skill', sid=skill.id) }}" style="display:inline;"
-                  onsubmit="return confirm('Delete «{{ skill.name }}»?');">
+                  data-confirm="Delete «{{ skill.name }}»?" onsubmit="return confirm(this.dataset.confirm);">
               <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
               <button type="submit" class="delete-btn" title="Delete"><i class="fas fa-trash"></i></button>
             </form>
@@ -107,33 +118,36 @@
         <h6 style="font-family:'Syne',sans-serif;font-weight:700;margin:0;">Edit Skill</h6>
         <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
       </div>
-      <form method="POST" id="editSkillForm">
+      <form method="POST" id="editSkillForm" action="{% if edit_skill %}{{ url_for('admin_edit_skill', sid=edit_skill.id) }}{% endif %}">
         <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
         <div class="modal-body" style="padding:22px;">
           <div class="mb-3">
             <label class="form-label">Skill Name</label>
-            <input type="text" name="name" id="editSkillName" class="form-control" required />
+            <input type="text" name="name" id="editSkillName" class="form-control"
+                   value="{{ edit_submitted.get('name', '') if edit_skill else '' }}" required />
           </div>
           <div class="mb-3">
             <label class="form-label">Category</label>
             <select name="category" id="editSkillCat" class="form-select">
-              <option value="Programming Languages">Programming Languages</option>
-              <option value="AI / ML">AI / ML</option>
-              <option value="Web Development">Web Development</option>
-              <option value="Databases">Databases</option>
-              <option value="Cloud & DevOps">Cloud & DevOps</option>
-              <option value="CS Fundamentals">CS Fundamentals</option>
-              <option value="Tools">Tools</option>
+              <option value="Programming Languages" {% if edit_category == 'Programming Languages' %}selected{% endif %}>Programming Languages</option>
+              <option value="AI / ML" {% if edit_category == 'AI / ML' %}selected{% endif %}>AI / ML</option>
+              <option value="Web Development" {% if edit_category == 'Web Development' %}selected{% endif %}>Web Development</option>
+              <option value="Databases" {% if edit_category == 'Databases' %}selected{% endif %}>Databases</option>
+              <option value="Cloud & DevOps" {% if edit_category == 'Cloud & DevOps' %}selected{% endif %}>Cloud & DevOps</option>
+              <option value="CS Fundamentals" {% if edit_category == 'CS Fundamentals' %}selected{% endif %}>CS Fundamentals</option>
+              <option value="Tools" {% if edit_category == 'Tools' %}selected{% endif %}>Tools</option>
             </select>
           </div>
           <div class="mb-3">
-            <label class="form-label">Proficiency: <span id="editProfVal">80</span>%</label>
+            <label class="form-label">Proficiency: <span id="editProfVal">{{ edit_submitted.get('proficiency', '80') if edit_skill else '80' }}</span>%</label>
             <input type="range" name="proficiency" id="editSkillProf" class="form-range" min="10" max="100" step="5"
+                   value="{{ edit_submitted.get('proficiency', '80') if edit_skill else '80' }}"
                    oninput="document.getElementById('editProfVal').textContent=this.value" />
           </div>
           <div class="mb-0">
             <label class="form-label">Order</label>
-            <input type="number" name="order" id="editSkillOrder" class="form-control" min="0" />
+            <input type="number" name="order" id="editSkillOrder" class="form-control" min="0"
+                   value="{{ edit_submitted.get('order', '') if edit_skill else '' }}" />
           </div>
         </div>
         <div class="modal-footer" style="border-top:1px solid #E2E8F0;padding:14px 22px;gap:8px;">
@@ -158,5 +172,21 @@ function openEditSkill(id, name, cat, prof, order) {
   document.getElementById('editSkillOrder').value = order;
   new bootstrap.Modal(document.getElementById('editSkillModal')).show();
 }
+
+document.querySelectorAll('.edit-skill-btn').forEach(button => {
+  button.addEventListener('click', () => {
+    openEditSkill(
+      button.dataset.skillId,
+      button.dataset.skillName,
+      button.dataset.skillCategory,
+      button.dataset.skillProficiency,
+      button.dataset.skillOrder,
+    );
+  });
+});
+
+{% if edit_skill %}
+new bootstrap.Modal(document.getElementById('editSkillModal')).show();
+{% endif %}
 </script>
 {% endblock %}

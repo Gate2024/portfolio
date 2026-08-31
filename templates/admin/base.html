@@ -299,9 +299,12 @@
     <a href="{{ url_for('index') }}" target="_blank">
       <i class="fas fa-external-link-alt"></i> View Portfolio
     </a>
-    <a href="{{ url_for('admin_logout') }}">
-      <i class="fas fa-sign-out-alt"></i> Logout
-    </a>
+    <form method="POST" action="{{ url_for('admin_logout') }}" style="margin:0;">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
+      <button type="submit" style="display:flex;align-items:center;gap:10px;width:100%;background:none;border:0;color:#64748B;padding:10px 14px;font-size:0.83rem;text-align:left;border-radius:10px;cursor:pointer;">
+        <i class="fas fa-sign-out-alt"></i> Logout
+      </button>
+    </form>
   </div>
 </aside>
 

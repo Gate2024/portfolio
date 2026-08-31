@@ -1,6 +1,8 @@
 import os
 import json
 import re
+import time
+from contextlib import contextmanager
 from datetime import datetime
 from functools import wraps
 from urllib.parse import urlparse
@@ -13,23 +15,45 @@ from flask_login import (LoginManager, UserMixin, login_user,
 from werkzeug.security import generate_password_hash, check_password_hash
 from werkzeug.utils import secure_filename
 from dotenv import load_dotenv
+from PIL import Image
+from sqlalchemy import text
 
 load_dotenv()
 
 app = Flask(__name__)
 
 # ─── Configuration ───────────────────────────────────────────────────────────
-app.config['SECRET_KEY'] = os.environ.get('SECRET_KEY', 'dev-secret-change-me')
+APP_ENV = os.environ.get('FLASK_ENV', 'development').lower()
+IS_PRODUCTION = APP_ENV == 'production'
+secret_key = os.environ.get('SECRET_KEY', '').strip()
+if IS_PRODUCTION and (
+    not secret_key
+    or secret_key == 'your-super-secret-key-change-this-in-production'
+    or secret_key.startswith('replace-with-')
+):
+    raise RuntimeError('SECRET_KEY must be explicitly configured for production.')
+app.config['SECRET_KEY'] = secret_key or 'dev-secret-change-me'
 app.config['SQLALCHEMY_DATABASE_URI'] = os.environ.get(
     'DATABASE_URL', 'sqlite:///portfolio.db'
 ).replace('postgres://', 'postgresql://')  # Fix Render's postgres:// URI
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 app.config['UPLOAD_FOLDER'] = os.path.join('static', 'uploads')
 app.config['MAX_CONTENT_LENGTH'] = 16 * 1024 * 1024  # 16 MB
+app.config['SESSION_COOKIE_HTTPONLY'] = True
+app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'
+app.config['SESSION_COOKIE_SECURE'] = IS_PRODUCTION
 
 os.makedirs(app.config['UPLOAD_FOLDER'], exist_ok=True)
 
 ALLOWED_EXTENSIONS = {'png', 'jpg', 'jpeg', 'gif', 'webp', 'pdf', 'svg'}
+ALLOWED_IMAGE_EXTENSIONS = {'png', 'jpg', 'jpeg', 'gif', 'webp'}
+MAX_IMAGE_SIZE = 5 * 1024 * 1024  # 5 MB per profile/project image
+IMAGE_FORMAT_EXTENSIONS = {
+    'PNG': {'png'},
+    'JPEG': {'jpg', 'jpeg'},
+    'GIF': {'gif'},
+    'WEBP': {'webp'},
+}
 
 db = SQLAlchemy(app)
 csrf = CSRFProtect(app)
@@ -42,17 +66,135 @@ def allowed_file(filename):
     return '.' in filename and filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
 
 
-def save_file(file, subfolder=''):
-    if file and allowed_file(file.filename):
-        filename = secure_filename(file.filename)
-        timestamp = datetime.now().strftime('%Y%m%d_%H%M%S_')
-        filename = timestamp + filename
-        folder = os.path.join(app.config['UPLOAD_FOLDER'], subfolder)
-        os.makedirs(folder, exist_ok=True)
-        path = os.path.join(folder, filename)
-        file.save(path)
-        return os.path.join('uploads', subfolder, filename).replace('\\', '/')
+def parse_integer_field(value, label, default=None, min_value=None, max_value=None):
+    raw_value = '' if value is None else str(value).strip()
+    if not raw_value:
+        return default, None
+    try:
+        parsed_value = int(raw_value)
+    except (TypeError, ValueError):
+        return default, f'{label} must be a valid integer.'
+    if min_value is not None and parsed_value < min_value:
+        return default, f'{label} must be at least {min_value}.'
+    if max_value is not None and parsed_value > max_value:
+        return default, f'{label} must be at most {max_value}.'
+    return parsed_value, None
+
+
+def parse_order_field(value, default=None):
+    return parse_integer_field(value, 'Display order', default, min_value=0)
+
+
+def validate_field_lengths(fields):
+    for label, value, max_length in fields:
+        if value is not None and len(str(value)) > max_length:
+            return f'{label} must be {max_length} characters or fewer.'
     return None
+
+
+def validate_http_url(value, label, max_length=500):
+    raw_value = '' if value is None else str(value)
+    length_error = validate_field_lengths(((label, raw_value, max_length),))
+    if length_error:
+        return raw_value, length_error
+    candidate = raw_value.strip()
+    if not candidate:
+        return raw_value, None
+    parsed_url = urlparse(candidate)
+    if parsed_url.scheme.lower() not in ('http', 'https') or not parsed_url.netloc:
+        return raw_value, f'{label} must be a valid HTTP or HTTPS URL.'
+    return raw_value, None
+
+
+def _uploaded_absolute_path(relative_path):
+    return os.path.realpath(os.path.join(app.static_folder, relative_path or ''))
+
+
+def remove_uploaded_file(relative_path, subfolder):
+    """Remove only a file inside the expected upload subdirectory."""
+    if not relative_path:
+        return False
+    expected_folder = os.path.realpath(os.path.join(app.config['UPLOAD_FOLDER'], subfolder))
+    absolute_path = _uploaded_absolute_path(relative_path)
+    try:
+        inside_expected_folder = os.path.commonpath(
+            [expected_folder, absolute_path]
+        ) == expected_folder
+    except ValueError:
+        inside_expected_folder = False
+    if not inside_expected_folder or not os.path.isfile(absolute_path):
+        return False
+    try:
+        os.remove(absolute_path)
+        return True
+    except OSError:
+        app.logger.warning('Could not remove replaced upload: %s', relative_path)
+        return False
+
+
+def uploaded_file_exists(relative_path):
+    """Check an upload path without changing the database or processing the file."""
+    if not relative_path:
+        return False
+    upload_root = os.path.realpath(app.config['UPLOAD_FOLDER'])
+    absolute_path = _uploaded_absolute_path(relative_path)
+    try:
+        inside_upload_root = os.path.commonpath([upload_root, absolute_path]) == upload_root
+    except ValueError:
+        inside_upload_root = False
+    return inside_upload_root and os.path.isfile(absolute_path)
+
+
+app.jinja_env.globals['uploaded_file_exists'] = uploaded_file_exists
+
+
+def save_image_file(file, subfolder=''):
+    """Validate and save a portfolio image, returning (path, error)."""
+    if not file or not file.filename:
+        return None, 'Please select an image file.'
+
+    filename = secure_filename(file.filename)
+    if not filename or '.' not in filename:
+        return None, 'Please upload a PNG, JPG, JPEG, GIF, or WEBP image.'
+    extension = filename.rsplit('.', 1)[1].lower()
+    if extension not in ALLOWED_IMAGE_EXTENSIONS:
+        return None, 'Only PNG, JPG, JPEG, GIF, and WEBP images are allowed.'
+
+    try:
+        file.stream.seek(0, os.SEEK_END)
+        file_size = file.stream.tell()
+        file.stream.seek(0)
+    except (OSError, ValueError):
+        return None, 'The uploaded image could not be read.'
+    if file_size > MAX_IMAGE_SIZE:
+        return None, 'Image files must be 5 MB or smaller.'
+
+    try:
+        with Image.open(file.stream) as image:
+            image.verify()
+            image_format = (image.format or '').upper()
+    except Exception:
+        file.stream.seek(0)
+        return None, 'The uploaded file is not a valid image.'
+    finally:
+        file.stream.seek(0)
+
+    if extension not in IMAGE_FORMAT_EXTENSIONS.get(image_format, set()):
+        return None, 'The file extension does not match the actual image format.'
+
+    timestamp = datetime.now().strftime('%Y%m%d_%H%M%S_')
+    filename = timestamp + filename
+    folder = os.path.join(app.config['UPLOAD_FOLDER'], subfolder)
+    os.makedirs(folder, exist_ok=True)
+    absolute_path = os.path.join(folder, filename)
+    relative_path = os.path.join('uploads', subfolder, filename).replace('\\', '/')
+    try:
+        file.stream.seek(0)
+        file.save(absolute_path)
+    except OSError:
+        remove_uploaded_file(relative_path, subfolder)
+        return None, 'The image could not be saved. Please try again.'
+    return relative_path, None
 
 
 # ─── Models ──────────────────────────────────────────────────────────────────
@@ -252,11 +394,25 @@ def seed_data():
 
     # Admin user
     if not AdminUser.query.first():
+        admin_username = os.environ.get('ADMIN_USERNAME', '').strip()
+        admin_email = os.environ.get('ADMIN_EMAIL', '').strip()
+        admin_password = os.environ.get('ADMIN_PASSWORD', '').strip()
+        if IS_PRODUCTION and (
+            not admin_username or not admin_email or not admin_password
+            or admin_username.startswith('replace-with-')
+            or admin_email.startswith('replace-with-')
+            or admin_password == 'admin123'
+            or admin_password.startswith('replace-with-')
+        ):
+            raise RuntimeError(
+                'ADMIN_USERNAME, ADMIN_EMAIL, and a non-default ADMIN_PASSWORD '
+                'must be explicitly configured for production.'
+            )
         admin = AdminUser(
-            username=os.environ.get('ADMIN_USERNAME', 'admin'),
-            email=os.environ.get('ADMIN_EMAIL', 'admin@portfolio.com'),
+            username=admin_username or 'admin',
+            email=admin_email or 'admin@portfolio.com',
         )
-        admin.set_password(os.environ.get('ADMIN_PASSWORD', 'admin123'))
+        admin.set_password(admin_password or 'admin123')
         db.session.add(admin)
 
     # Profile
@@ -510,6 +666,72 @@ def seed_data():
     db.session.commit()
 
 
+@contextmanager
+def _sqlite_initialization_lock():
+    """Serialize SQLite initialization across workers without adding a dependency."""
+    lock_path = os.path.join(app.instance_path, '.portfolio-init.lock')
+    os.makedirs(app.instance_path, exist_ok=True)
+
+    with open(lock_path, 'a+b') as lock_file:
+        if os.name == 'nt':
+            import msvcrt
+
+            lock_file.seek(0, os.SEEK_END)
+            if lock_file.tell() == 0:
+                lock_file.write(b'0')
+                lock_file.flush()
+            lock_file.seek(0)
+            while True:
+                try:
+                    msvcrt.locking(lock_file.fileno(), msvcrt.LK_NBLCK, 1)
+                    break
+                except OSError:
+                    time.sleep(0.05)
+        else:
+            import fcntl
+
+            fcntl.flock(lock_file.fileno(), fcntl.LOCK_EX)
+
+        try:
+            yield
+        finally:
+            if os.name == 'nt':
+                lock_file.seek(0)
+                msvcrt.locking(lock_file.fileno(), msvcrt.LK_UNLCK, 1)
+            else:
+                fcntl.flock(lock_file.fileno(), fcntl.LOCK_UN)
+
+
+@contextmanager
+def database_initialization_lock():
+    """Serialize startup work for PostgreSQL and the local SQLite fallback."""
+    if db.engine.url.get_backend_name() == 'postgresql':
+        lock_key = 418271
+        with db.engine.connect() as lock_connection:
+            lock_connection.execute(
+                text('SELECT pg_advisory_lock(:lock_key)'),
+                {'lock_key': lock_key},
+            )
+            lock_connection.commit()
+            try:
+                yield
+            finally:
+                lock_connection.execute(
+                    text('SELECT pg_advisory_unlock(:lock_key)'),
+                    {'lock_key': lock_key},
+                )
+                lock_connection.commit()
+    else:
+        with _sqlite_initialization_lock():
+            yield
+
+
+def initialize_database():
+    with database_initialization_lock():
+        db.create_all()
+        seed_data()
+
+
 # ─── Public Routes ────────────────────────────────────────────────────────────
 
 @app.route('/')
@@ -595,7 +817,7 @@ def admin_login():
     return render_template('auth/login.html')
 
 
-@app.route('/admin/logout')
+@app.route('/admin/logout', methods=['POST'])
 @login_required
 def admin_logout():
     logout_user()
@@ -631,26 +853,73 @@ def admin_dashboard():
 def admin_profile():
     profile = Profile.query.first()
     if request.method == 'POST':
-        profile.full_name   = request.form.get('full_name', profile.full_name)
-        profile.tagline     = request.form.get('tagline', profile.tagline)
+        counters = {}
+        for field, label in (
+            ('projects_count', 'Projects count'),
+            ('certifications_count', 'Certifications count'),
+            ('technologies_count', 'Technologies count'),
+            ('experience_months', 'Experience'),
+        ):
+            counters[field], error = parse_integer_field(
+                request.form.get(field), label, getattr(profile, field), min_value=0
+            )
+            if error:
+                flash(error, 'danger')
+                return render_template('admin/profile.html', profile=profile, form_data=request.form), 400
+
+        full_name = request.form.get('full_name', profile.full_name)
+        tagline = request.form.get('tagline', profile.tagline)
+        location = request.form.get('location', profile.location)
+        email = request.form.get('email', profile.email)
+        phone = request.form.get('phone', profile.phone)
+        resume_url, url_error = validate_http_url(
+            request.form.get('resume_url', profile.resume_url), 'Resume URL'
+        )
+        length_error = validate_field_lengths((
+            ('Full name', full_name, 120),
+            ('Tagline', tagline, 300),
+            ('Location', location, 200),
+            ('Email address', email, 120),
+            ('Phone number', phone, 20),
+        ))
+        if url_error or length_error:
+            flash(url_error or length_error, 'danger')
+            return render_template('admin/profile.html', profile=profile, form_data=request.form), 400
+
+        new_image_path = None
+        uploaded_image = request.files.get('profile_image')
+        if uploaded_image and uploaded_image.filename:
+            new_image_path, error = save_image_file(uploaded_image, 'profile')
+            if error:
+                flash(error, 'danger')
+                return render_template('admin/profile.html', profile=profile, form_data=request.form), 400
+
+        old_image_path = profile.profile_image
+        profile.full_name   = full_name
+        profile.tagline     = tagline
         profile.bio         = request.form.get('bio', profile.bio)
         profile.career_obj  = request.form.get('career_obj', profile.career_obj)
-        profile.location    = request.form.get('location', profile.location)
-        profile.email       = request.form.get('email', profile.email)
-        profile.phone       = request.form.get('phone', profile.phone)
-        profile.resume_url  = request.form.get('resume_url', profile.resume_url)
-        profile.projects_count       = int(request.form.get('projects_count', profile.projects_count))
-        profile.certifications_count = int(request.form.get('certifications_count', profile.certifications_count))
-        profile.technologies_count   = int(request.form.get('technologies_count', profile.technologies_count))
-        profile.experience_months    = int(request.form.get('experience_months', profile.experience_months))
+        profile.location    = location
+        profile.email       = email
+        profile.phone       = phone
+        profile.resume_url  = resume_url
+        profile.projects_count       = counters['projects_count']
+        profile.certifications_count = counters['certifications_count']
+        profile.technologies_count   = counters['technologies_count']
+        profile.experience_months    = counters['experience_months']
+        if new_image_path:
+            profile.profile_image = new_image_path
 
-        if 'profile_image' in request.files:
-            f = request.files['profile_image']
-            path = save_file(f, 'profile')
-            if path:
-                profile.profile_image = path
-
-        db.session.commit()
+        try:
+            db.session.commit()
+        except Exception:
+            db.session.rollback()
+            if new_image_path:
+                remove_uploaded_file(new_image_path, 'profile')
+            flash('Profile could not be updated. Please try again.', 'danger')
+            return render_template('admin/profile.html', profile=profile, form_data=request.form), 500
+        if new_image_path and old_image_path != new_image_path:
+            remove_uploaded_file(old_image_path, 'profile')
         flash('Profile updated successfully!', 'success')
         return redirect(url_for('admin_profile'))
     return render_template('admin/profile.html', profile=profile)
@@ -678,13 +947,15 @@ def admin_add_service():
         flash('Title, description, and icon are required.', 'danger')
         return render_template('admin/services.html', services=services, form_data=request.form)
 
-    if order_raw:
-        try:
-            order = int(order_raw)
-        except ValueError:
-            flash('Display order must be a valid integer.', 'danger')
-            return render_template('admin/services.html', services=services, form_data=request.form)
-    else:
+    length_error = validate_field_lengths((
+        ('Service title', title, 300),
+        ('Service icon', icon, 100),
+    ))
+    order, order_error = parse_order_field(order_raw)
+    if length_error or order_error:
+        flash(length_error or order_error, 'danger')
+        return render_template('admin/services.html', services=services, form_data=request.form)
+    if order is None:
         max_order = db.session.query(db.func.max(Service.order)).scalar()
         order = (max_order if max_order is not None else 0) + 1
 
@@ -717,14 +988,14 @@ def admin_edit_service(sid):
             flash('Title, description, and icon are required.', 'danger')
             return render_template('admin/service_form.html', service=service, form_data=form_data)
 
-        if order_raw:
-            try:
-                order = int(order_raw)
-            except ValueError:
-                flash('Display order must be a valid integer.', 'danger')
-                return render_template('admin/service_form.html', service=service, form_data=form_data)
-        else:
-            order = service.order
+        length_error = validate_field_lengths((
+            ('Service title', title, 300),
+            ('Service icon', icon, 100),
+        ))
+        order, order_error = parse_order_field(order_raw, service.order)
+        if length_error or order_error:
+            flash(length_error or order_error, 'danger')
+            return render_template('admin/service_form.html', service=service, form_data=form_data)
 
         service.title = title
         service.description = description
@@ -769,13 +1040,15 @@ def admin_add_language():
         flash('Language name and proficiency are required.', 'danger')
         return render_template('admin/languages.html', languages=languages, form_data=request.form)
 
-    if order_raw:
-        try:
-            order = int(order_raw)
-        except ValueError:
-            flash('Display order must be a valid integer.', 'danger')
-            return render_template('admin/languages.html', languages=languages, form_data=request.form)
-    else:
+    length_error = validate_field_lengths((
+        ('Language name', name, 100),
+        ('Language proficiency', proficiency, 100),
+    ))
+    order, order_error = parse_order_field(order_raw)
+    if length_error or order_error:
+        flash(length_error or order_error, 'danger')
+        return render_template('admin/languages.html', languages=languages, form_data=request.form)
+    if order is None:
         max_order = db.session.query(db.func.max(Language.order)).scalar()
         order = (max_order if max_order is not None else 0) + 1
 
@@ -806,14 +1079,14 @@ def admin_edit_language(lid):
             flash('Language name and proficiency are required.', 'danger')
             return render_template('admin/language_form.html', language=language, form_data=form_data)
 
-        if order_raw:
-            try:
-                order = int(order_raw)
-            except ValueError:
-                flash('Display order must be a valid integer.', 'danger')
-                return render_template('admin/language_form.html', language=language, form_data=form_data)
-        else:
-            order = language.order
+        length_error = validate_field_lengths((
+            ('Language name', name, 100),
+            ('Language proficiency', proficiency, 100),
+        ))
+        order, order_error = parse_order_field(order_raw, language.order)
+        if length_error or order_error:
+            flash(length_error or order_error, 'danger')
+            return render_template('admin/language_form.html', language=language, form_data=form_data)
 
         language.name = name
         language.proficiency = proficiency
@@ -858,13 +1131,19 @@ def admin_add_education():
             flash('Degree and institution are required.', 'danger')
             return render_template('admin/education_form.html', education=None, form_data=form_data)
 
-        if order_raw:
-            try:
-                order = int(order_raw)
-            except ValueError:
-                flash('Display order must be a valid integer.', 'danger')
-                return render_template('admin/education_form.html', education=None, form_data=form_data)
-        else:
+        length_error = validate_field_lengths((
+            ('Degree', degree, 200),
+            ('Institution', institution, 300),
+            ('Start year', request.form.get('year_start', ''), 10),
+            ('End year', request.form.get('year_end', ''), 10),
+            ('Grade', request.form.get('grade', ''), 50),
+            ('Grade type', request.form.get('grade_type', ''), 20),
+        ))
+        order, order_error = parse_order_field(order_raw)
+        if length_error or order_error:
+            flash(length_error or order_error, 'danger')
+            return render_template('admin/education_form.html', education=None, form_data=form_data)
+        if order is None:
             max_order = db.session.query(db.func.max(Education.order)).scalar()
             order = (max_order if max_order is not None else 0) + 1
 
@@ -899,14 +1178,18 @@ def admin_edit_education(eid):
             flash('Degree and institution are required.', 'danger')
             return render_template('admin/education_form.html', education=education, form_data=form_data)
 
-        if order_raw:
-            try:
-                order = int(order_raw)
-            except ValueError:
-                flash('Display order must be a valid integer.', 'danger')
-                return render_template('admin/education_form.html', education=education, form_data=form_data)
-        else:
-            order = education.order
+        length_error = validate_field_lengths((
+            ('Degree', degree, 200),
+            ('Institution', institution, 300),
+            ('Start year', request.form.get('year_start', ''), 10),
+            ('End year', request.form.get('year_end', ''), 10),
+            ('Grade', request.form.get('grade', ''), 50),
+            ('Grade type', request.form.get('grade_type', ''), 20),
+        ))
+        order, order_error = parse_order_field(order_raw, education.order)
+        if length_error or order_error:
+            flash(length_error or order_error, 'danger')
+            return render_template('admin/education_form.html', education=education, form_data=form_data)
 
         education.degree = degree
         education.institution = institution
@@ -945,25 +1228,60 @@ def admin_projects():
 @login_required
 def admin_add_project():
     if request.method == 'POST':
+        order, error = parse_order_field(request.form.get('order'), 0)
+        if error:
+            flash(error, 'danger')
+            return render_template('admin/project_form.html', project=None, form_data=request.form), 400
+
+        title = request.form.get('title')
+        tech_stack = request.form.get('tech_stack')
+        category = request.form.get('category', 'AI/ML')
+        github_url, github_error = validate_http_url(
+            request.form.get('github_url'), 'GitHub URL'
+        )
+        live_url, live_error = validate_http_url(
+            request.form.get('live_url'), 'Live demo URL'
+        )
+        length_error = validate_field_lengths((
+            ('Project title', title, 200),
+            ('Tech stack', tech_stack, 500),
+            ('Category', category, 100),
+        ))
+        if github_error or live_error or length_error:
+            flash(github_error or live_error or length_error, 'danger')
+            return render_template('admin/project_form.html', project=None, form_data=request.form), 400
+
+        image_path = None
+        uploaded_image = request.files.get('image')
+        if uploaded_image and uploaded_image.filename:
+            image_path, error = save_image_file(uploaded_image, 'projects')
+            if error:
+                flash(error, 'danger')
+                return render_template('admin/project_form.html', project=None, form_data=request.form), 400
         features_raw = request.form.get('features', '')
         features_list = [f.strip() for f in features_raw.split('\n') if f.strip()]
         p = Project(
-            title=request.form.get('title'),
+            title=title,
             description=request.form.get('description'),
-            tech_stack=request.form.get('tech_stack'),
+            tech_stack=tech_stack,
             features=json.dumps(features_list),
-            github_url=request.form.get('github_url'),
-            live_url=request.form.get('live_url'),
-            category=request.form.get('category', 'AI/ML'),
+            github_url=github_url,
+            live_url=live_url,
+            category=category,
             is_featured=bool(request.form.get('is_featured')),
-            order=int(request.form.get('order', 0)),
+            order=order,
         )
-        if 'image' in request.files:
-            path = save_file(request.files['image'], 'projects')
-            if path:
-                p.image = path
+        if image_path:
+            p.image = image_path
         db.session.add(p)
-        db.session.commit()
+        try:
+            db.session.commit()
+        except Exception:
+            db.session.rollback()
+            if image_path:
+                remove_uploaded_file(image_path, 'projects')
+            flash('Project could not be added. Please try again.', 'danger')
+            return render_template('admin/project_form.html', project=None, form_data=request.form), 500
         flash('Project added!', 'success')
         return redirect(url_for('admin_projects'))
     return render_template('admin/project_form.html', project=None)
@@ -974,22 +1292,60 @@ def admin_add_project():
 def admin_edit_project(pid):
     p = Project.query.get_or_404(pid)
     if request.method == 'POST':
-        p.title       = request.form.get('title', p.title)
+        order, error = parse_order_field(request.form.get('order'), p.order)
+        if error:
+            flash(error, 'danger')
+            return render_template('admin/project_form.html', project=p, form_data=request.form), 400
+
+        title = request.form.get('title', p.title)
+        tech_stack = request.form.get('tech_stack', p.tech_stack)
+        category = request.form.get('category', p.category)
+        github_url, github_error = validate_http_url(
+            request.form.get('github_url', p.github_url), 'GitHub URL'
+        )
+        live_url, live_error = validate_http_url(
+            request.form.get('live_url', p.live_url), 'Live demo URL'
+        )
+        length_error = validate_field_lengths((
+            ('Project title', title, 200),
+            ('Tech stack', tech_stack, 500),
+            ('Category', category, 100),
+        ))
+        if github_error or live_error or length_error:
+            flash(github_error or live_error or length_error, 'danger')
+            return render_template('admin/project_form.html', project=p, form_data=request.form), 400
+
+        new_image_path = None
+        uploaded_image = request.files.get('image')
+        if uploaded_image and uploaded_image.filename:
+            new_image_path, error = save_image_file(uploaded_image, 'projects')
+            if error:
+                flash(error, 'danger')
+                return render_template('admin/project_form.html', project=p, form_data=request.form), 400
+        old_image_path = p.image
+        p.title       = title
         p.description = request.form.get('description', p.description)
-        p.tech_stack  = request.form.get('tech_stack', p.tech_stack)
+        p.tech_stack  = tech_stack
         features_raw  = request.form.get('features', '')
         features_list = [f.strip() for f in features_raw.split('\n') if f.strip()]
         p.features    = json.dumps(features_list)
-        p.github_url  = request.form.get('github_url', p.github_url)
-        p.live_url    = request.form.get('live_url', p.live_url)
-        p.category    = request.form.get('category', p.category)
+        p.github_url  = github_url
+        p.live_url    = live_url
+        p.category    = category
         p.is_featured = bool(request.form.get('is_featured'))
-        p.order       = int(request.form.get('order', p.order))
-        if 'image' in request.files:
-            path = save_file(request.files['image'], 'projects')
-            if path:
-                p.image = path
-        db.session.commit()
+        p.order       = order
+        if new_image_path:
+            p.image = new_image_path
+        try:
+            db.session.commit()
+        except Exception:
+            db.session.rollback()
+            if new_image_path:
+                remove_uploaded_file(new_image_path, 'projects')
+            flash('Project could not be updated. Please try again.', 'danger')
+            return render_template('admin/project_form.html', project=p, form_data=request.form), 500
+        if new_image_path and old_image_path != new_image_path:
+            remove_uploaded_file(old_image_path, 'projects')
         flash('Project updated!', 'success')
         return redirect(url_for('admin_projects'))
     return render_template('admin/project_form.html', project=p)
@@ -1017,11 +1373,28 @@ def admin_skills():
 @app.route('/admin/skills/add', methods=['POST'])
 @login_required
 def admin_add_skill():
+    name = request.form.get('name', '')
+    category = request.form.get('category', '')
+    proficiency, error = parse_integer_field(
+        request.form.get('proficiency'), 'Proficiency', 80, min_value=0, max_value=100
+    )
+    order, order_error = parse_order_field(request.form.get('order'), 0)
+    length_error = validate_field_lengths((
+        ('Skill name', name, 100),
+        ('Skill category', category, 100),
+    ))
+    if error or order_error or length_error:
+        flash(error or order_error or length_error, 'danger')
+        return render_template(
+            'admin/skills.html',
+            skills=Skill.query.order_by(Skill.category, Skill.order).all(),
+            form_data=request.form,
+        ), 400
     s = Skill(
-        name=request.form.get('name'),
-        category=request.form.get('category'),
-        proficiency=int(request.form.get('proficiency', 80)),
-        order=int(request.form.get('order', 0)),
+        name=name,
+        category=category,
+        proficiency=proficiency,
+        order=order,
     )
     db.session.add(s)
     db.session.commit()
@@ -1033,10 +1406,29 @@ def admin_add_skill():
 @login_required
 def admin_edit_skill(sid):
     s = Skill.query.get_or_404(sid)
-    s.name       = request.form.get('name', s.name)
-    s.category   = request.form.get('category', s.category)
-    s.proficiency = int(request.form.get('proficiency', s.proficiency))
-    s.order      = int(request.form.get('order', s.order))
+    name = request.form.get('name', s.name)
+    category = request.form.get('category', s.category)
+    proficiency, error = parse_integer_field(
+        request.form.get('proficiency'), 'Proficiency', s.proficiency, min_value=0, max_value=100
+    )
+    order, order_error = parse_order_field(request.form.get('order'), s.order)
+    length_error = validate_field_lengths((
+        ('Skill name', name, 100),
+        ('Skill category', category, 100),
+    ))
+    if error or order_error or length_error:
+        flash(error or order_error or length_error, 'danger')
+        return render_template(
+            'admin/skills.html',
+            skills=Skill.query.order_by(Skill.category, Skill.order).all(),
+            form_data={},
+            edit_skill=s,
+            edit_form_data=request.form,
+        ), 400
+    s.name       = name
+    s.category   = category
+    s.proficiency = proficiency
+    s.order      = order
     db.session.commit()
     flash('Skill updated!', 'success')
     return redirect(url_for('admin_skills'))
@@ -1073,23 +1465,34 @@ def admin_add_certification():
         flash('Certificate title and issuer are required.', 'danger')
         return render_template('admin/certifications.html', certs=certs, form_data=request.form)
 
-    if order_raw:
-        try:
-            order = int(order_raw)
-        except ValueError:
-            flash('Display order must be a valid integer.', 'danger')
-            return render_template('admin/certifications.html', certs=certs, form_data=request.form)
-    else:
+    category = request.form.get('category', 'Technical').strip() or 'Technical'
+    cert_url, url_error = validate_http_url(
+        request.form.get('cert_url', '').strip(), 'Certificate URL'
+    )
+    issue_date = request.form.get('issue_date', '').strip()
+    credential_id = request.form.get('credential_id', '').strip()
+    length_error = validate_field_lengths((
+        ('Certificate title', title, 300),
+        ('Issuing organisation', issuer, 200),
+        ('Category', category, 100),
+        ('Issue date', issue_date, 50),
+        ('Credential ID', credential_id, 200),
+    ))
+    order, order_error = parse_order_field(order_raw)
+    if url_error or length_error or order_error:
+        flash(url_error or length_error or order_error, 'danger')
+        return render_template('admin/certifications.html', certs=certs, form_data=request.form)
+    if order is None:
         max_order = db.session.query(db.func.max(Certification.order)).scalar()
         order = (max_order if max_order is not None else 0) + 1
 
     c = Certification(
         title=title,
         issuer=issuer,
-        category=request.form.get('category', 'Technical').strip() or 'Technical',
-        cert_url=request.form.get('cert_url', '').strip(),
-        issue_date=request.form.get('issue_date', '').strip(),
-        credential_id=request.form.get('credential_id', '').strip(),
+        category=category,
+        cert_url=cert_url,
+        issue_date=issue_date,
+        credential_id=credential_id,
         order=order,
     )
     db.session.add(c)
@@ -1113,21 +1516,30 @@ def admin_edit_certification(cid):
             flash('Certificate title and issuer are required.', 'danger')
             return render_template('admin/certification_form.html', certification=certification, form_data=form_data)
 
-        if order_raw:
-            try:
-                order = int(order_raw)
-            except ValueError:
-                flash('Display order must be a valid integer.', 'danger')
-                return render_template('admin/certification_form.html', certification=certification, form_data=form_data)
-        else:
-            order = certification.order
+        category = request.form.get('category', 'Technical').strip() or 'Technical'
+        cert_url, url_error = validate_http_url(
+            request.form.get('cert_url', '').strip(), 'Certificate URL'
+        )
+        issue_date = request.form.get('issue_date', '').strip()
+        credential_id = request.form.get('credential_id', '').strip()
+        length_error = validate_field_lengths((
+            ('Certificate title', title, 300),
+            ('Issuing organisation', issuer, 200),
+            ('Category', category, 100),
+            ('Issue date', issue_date, 50),
+            ('Credential ID', credential_id, 200),
+        ))
+        order, order_error = parse_order_field(order_raw, certification.order)
+        if url_error or length_error or order_error:
+            flash(url_error or length_error or order_error, 'danger')
+            return render_template('admin/certification_form.html', certification=certification, form_data=form_data)
 
         certification.title = title
         certification.issuer = issuer
-        certification.category = request.form.get('category', 'Technical').strip() or 'Technical'
-        certification.cert_url = request.form.get('cert_url', '').strip()
-        certification.issue_date = request.form.get('issue_date', '').strip()
-        certification.credential_id = request.form.get('credential_id', '').strip()
+        certification.category = category
+        certification.cert_url = cert_url
+        certification.issue_date = issue_date
+        certification.credential_id = credential_id
         certification.order = order
         db.session.commit()
         flash('Certification updated!', 'success')
@@ -1166,22 +1578,29 @@ def admin_add_achievement():
         flash('Achievement title is required.', 'danger')
         return render_template('admin/achievements.html', achievements=achievements, form_data=request.form)
 
-    if order_raw:
-        try:
-            order = int(order_raw)
-        except ValueError:
-            flash('Display order must be a valid integer.', 'danger')
-            return render_template('admin/achievements.html', achievements=achievements, form_data=request.form)
-    else:
+    date = request.form.get('date', '').strip()
+    icon = request.form.get('icon', '').strip() or 'fas fa-trophy'
+    category = request.form.get('category', 'Leadership').strip() or 'Leadership'
+    length_error = validate_field_lengths((
+        ('Achievement title', title, 300),
+        ('Achievement date', date, 50),
+        ('Achievement icon', icon, 100),
+        ('Achievement category', category, 100),
+    ))
+    order, order_error = parse_order_field(order_raw)
+    if length_error or order_error:
+        flash(length_error or order_error, 'danger')
+        return render_template('admin/achievements.html', achievements=achievements, form_data=request.form)
+    if order is None:
         max_order = db.session.query(db.func.max(Achievement.order)).scalar()
         order = (max_order if max_order is not None else 0) + 1
 
     a = Achievement(
         title=title,
         description=request.form.get('description', '').strip(),
-        date=request.form.get('date', '').strip(),
-        icon=request.form.get('icon', '').strip() or 'fas fa-trophy',
-        category=request.form.get('category', 'Leadership').strip() or 'Leadership',
+        date=date,
+        icon=icon,
+        category=category,
         order=order,
     )
     db.session.add(a)
@@ -1204,20 +1623,25 @@ def admin_edit_achievement(aid):
             flash('Achievement title is required.', 'danger')
             return render_template('admin/achievement_form.html', achievement=achievement, form_data=form_data)
 
-        if order_raw:
-            try:
-                order = int(order_raw)
-            except ValueError:
-                flash('Display order must be a valid integer.', 'danger')
-                return render_template('admin/achievement_form.html', achievement=achievement, form_data=form_data)
-        else:
-            order = achievement.order
+        date = request.form.get('date', '').strip()
+        icon = request.form.get('icon', '').strip() or 'fas fa-trophy'
+        category = request.form.get('category', 'Leadership').strip() or 'Leadership'
+        length_error = validate_field_lengths((
+            ('Achievement title', title, 300),
+            ('Achievement date', date, 50),
+            ('Achievement icon', icon, 100),
+            ('Achievement category', category, 100),
+        ))
+        order, order_error = parse_order_field(order_raw, achievement.order)
+        if length_error or order_error:
+            flash(length_error or order_error, 'danger')
+            return render_template('admin/achievement_form.html', achievement=achievement, form_data=form_data)
 
         achievement.title = title
         achievement.description = request.form.get('description', '').strip()
-        achievement.date = request.form.get('date', '').strip()
-        achievement.icon = request.form.get('icon', '').strip() or 'fas fa-trophy'
-        achievement.category = request.form.get('category', 'Leadership').strip() or 'Leadership'
+        achievement.date = date
+        achievement.icon = icon
+        achievement.category = category
         achievement.order = order
         db.session.commit()
         flash('Achievement updated!', 'success')
@@ -1258,19 +1682,22 @@ def admin_add_research():
         flash('Paper title and journal/conference are required.', 'danger')
         return render_template('admin/research.html', papers=papers, form_data=request.form)
 
-    if paper_url:
-        parsed_url = urlparse(paper_url)
-        if parsed_url.scheme not in ('http', 'https') or not parsed_url.netloc:
-            flash('Paper URL must be a valid HTTP or HTTPS URL.', 'danger')
-            return render_template('admin/research.html', papers=papers, form_data=request.form)
-
-    if order_raw:
-        try:
-            order = int(order_raw)
-        except ValueError:
-            flash('Display order must be a valid integer.', 'danger')
-            return render_template('admin/research.html', papers=papers, form_data=request.form)
-    else:
+    paper_url, url_error = validate_http_url(paper_url, 'Paper URL')
+    pub_date = request.form.get('pub_date', '').strip()
+    authors = request.form.get('authors', '').strip()
+    keywords = request.form.get('keywords', '').strip()
+    length_error = validate_field_lengths((
+        ('Paper title', title, 500),
+        ('Journal or conference', journal, 300),
+        ('Publication date', pub_date, 50),
+        ('Authors', authors, 500),
+        ('Keywords', keywords, 300),
+    ))
+    order, order_error = parse_order_field(order_raw)
+    if url_error or length_error or order_error:
+        flash(url_error or length_error or order_error, 'danger')
+        return render_template('admin/research.html', papers=papers, form_data=request.form)
+    if order is None:
         max_order = db.session.query(db.func.max(Research.order)).scalar()
         order = (max_order if max_order is not None else 0) + 1
 
@@ -1279,9 +1706,9 @@ def admin_add_research():
         journal=journal,
         abstract=request.form.get('abstract', '').strip(),
         paper_url=paper_url,
-        pub_date=request.form.get('pub_date', '').strip(),
-        authors=request.form.get('authors', '').strip(),
-        keywords=request.form.get('keywords', '').strip(),
+        pub_date=pub_date,
+        authors=authors,
+        keywords=keywords,
         order=order,
     )
     db.session.add(r)
@@ -1305,28 +1732,29 @@ def admin_edit_research(rid):
             flash('Paper title and journal/conference are required.', 'danger')
             return render_template('admin/research_form.html', paper=r, form_data=form_data)
 
-        if paper_url:
-            parsed_url = urlparse(paper_url)
-            if parsed_url.scheme not in ('http', 'https') or not parsed_url.netloc:
-                flash('Paper URL must be a valid HTTP or HTTPS URL.', 'danger')
-                return render_template('admin/research_form.html', paper=r, form_data=form_data)
-
-        if order_raw:
-            try:
-                order = int(order_raw)
-            except ValueError:
-                flash('Display order must be a valid integer.', 'danger')
-                return render_template('admin/research_form.html', paper=r, form_data=form_data)
-        else:
-            order = r.order
+        paper_url, url_error = validate_http_url(paper_url, 'Paper URL')
+        pub_date = request.form.get('pub_date', '').strip()
+        authors = request.form.get('authors', '').strip()
+        keywords = request.form.get('keywords', '').strip()
+        length_error = validate_field_lengths((
+            ('Paper title', title, 500),
+            ('Journal or conference', journal, 300),
+            ('Publication date', pub_date, 50),
+            ('Authors', authors, 500),
+            ('Keywords', keywords, 300),
+        ))
+        order, order_error = parse_order_field(order_raw, r.order)
+        if url_error or length_error or order_error:
+            flash(url_error or length_error or order_error, 'danger')
+            return render_template('admin/research_form.html', paper=r, form_data=form_data)
 
         r.title     = title
         r.journal   = journal
         r.abstract  = request.form.get('abstract', '').strip()
         r.paper_url = paper_url
-        r.pub_date  = request.form.get('pub_date', '').strip()
-        r.authors   = request.form.get('authors', '').strip()
-        r.keywords  = request.form.get('keywords', '').strip()
+        r.pub_date  = pub_date
+        r.authors   = authors
+        r.keywords  = keywords
         r.order     = order
         db.session.commit()
         flash('Research paper updated!', 'success')
@@ -1394,38 +1822,41 @@ def admin_social():
             platform = request.form.get('platform', '').strip()
             url = request.form.get('url', '').strip()
             order_raw = request.form.get('order', '').strip()
+            icon = request.form.get('icon', '').strip() or 'fab fa-link'
             links = SocialLink.query.order_by(SocialLink.order).all()
 
             if not platform:
                 flash('Platform name is required.', 'danger')
                 return render_template('admin/social.html', links=links, form_data=request.form)
 
-            parsed_url = urlparse(url)
-            if not url or parsed_url.scheme not in ('http', 'https') or not parsed_url.netloc:
-                flash('Please enter a valid HTTP or HTTPS URL.', 'danger')
+            url, url_error = validate_http_url(url, 'Social URL')
+            length_error = validate_field_lengths((
+                ('Platform name', platform, 50),
+                ('Social icon', icon, 100),
+            ))
+            order, order_error = parse_order_field(order_raw)
+            if not url or url_error or length_error or order_error:
+                flash(url_error or length_error or order_error or 'Please enter a valid HTTP or HTTPS URL.', 'danger')
                 return render_template('admin/social.html', links=links, form_data=request.form)
 
-            if order_raw:
-                try:
-                    order = int(order_raw)
-                except ValueError:
-                    flash('Display order must be a valid integer.', 'danger')
-                    return render_template('admin/social.html', links=links, form_data=request.form)
-            else:
+            if order is None:
                 max_order = db.session.query(db.func.max(SocialLink.order)).scalar()
                 order = (max_order if max_order is not None else 0) + 1
 
             s = SocialLink(
                 platform=platform,
                 url=url,
-                icon=request.form.get('icon', '').strip() or 'fab fa-link',
+                icon=icon,
                 order=order,
                 is_active=request.form.get('is_active', '1') == '1',
             )
             db.session.add(s)
             flash('Social link added!', 'success')
         elif action == 'delete':
-            sid = int(request.form.get('id'))
+            sid, error = parse_integer_field(request.form.get('id'), 'Social link ID', min_value=1)
+            if error or sid is None:
+                flash(error or 'A valid social link ID is required.', 'danger')
+                return redirect(url_for('admin_social'))
             s = SocialLink.query.get_or_404(sid)
             db.session.delete(s)
             flash('Social link deleted.', 'success')
@@ -1445,28 +1876,25 @@ def admin_edit_social(sid):
         platform = request.form.get('platform', '').strip()
         url = request.form.get('url', '').strip()
         order_raw = request.form.get('order', '').strip()
+        icon = request.form.get('icon', '').strip() or 'fab fa-link'
 
         if not platform:
             flash('Platform name is required.', 'danger')
             return render_template('admin/social_form.html', social_link=social_link, form_data=form_data)
 
-        parsed_url = urlparse(url)
-        if not url or parsed_url.scheme not in ('http', 'https') or not parsed_url.netloc:
-            flash('Please enter a valid HTTP or HTTPS URL.', 'danger')
+        url, url_error = validate_http_url(url, 'Social URL')
+        length_error = validate_field_lengths((
+            ('Platform name', platform, 50),
+            ('Social icon', icon, 100),
+        ))
+        order, order_error = parse_order_field(order_raw, social_link.order)
+        if not url or url_error or length_error or order_error:
+            flash(url_error or length_error or order_error or 'Please enter a valid HTTP or HTTPS URL.', 'danger')
             return render_template('admin/social_form.html', social_link=social_link, form_data=form_data)
-
-        if order_raw:
-            try:
-                order = int(order_raw)
-            except ValueError:
-                flash('Display order must be a valid integer.', 'danger')
-                return render_template('admin/social_form.html', social_link=social_link, form_data=form_data)
-        else:
-            order = social_link.order
 
         social_link.platform = platform
         social_link.url = url
-        social_link.icon = request.form.get('icon', '').strip() or 'fab fa-link'
+        social_link.icon = icon
         social_link.order = order
         social_link.is_active = request.form.get('is_active') == '1'
         db.session.commit()
@@ -1490,6 +1918,11 @@ def admin_experience():
 def admin_add_experience():
     title = request.form.get('title', '').strip()
     company = request.form.get('company', '').strip()
+    location = request.form.get('location', '').strip()
+    start_date = request.form.get('start_date', '').strip()
+    end_date = request.form.get('end_date', '').strip()
+    emp_type = request.form.get('emp_type', '').strip()
+    technologies = request.form.get('technologies', '').strip()
     order_raw = request.form.get('order', '').strip()
     experiences = Experience.query.order_by(Experience.order).all()
 
@@ -1497,13 +1930,21 @@ def admin_add_experience():
         flash('Job title and company are required.', 'danger')
         return render_template('admin/experience.html', experiences=experiences, form_data=request.form)
 
-    if order_raw:
-        try:
-            order = int(order_raw)
-        except ValueError:
-            flash('Display order must be a valid integer.', 'danger')
-            return render_template('admin/experience.html', experiences=experiences, form_data=request.form)
-    else:
+    length_error = validate_field_lengths((
+        ('Job title', title, 200),
+        ('Company', company, 200),
+        ('Location', location, 200),
+        ('Start date', start_date, 50),
+        ('End date', end_date, 50),
+        ('Employment type', emp_type, 100),
+        ('Technologies', technologies, 500),
+    ))
+    order, order_error = parse_order_field(order_raw)
+    if length_error or order_error:
+        flash(length_error or order_error, 'danger')
+        return render_template('admin/experience.html', experiences=experiences, form_data=request.form)
+
+    if order is None:
         max_order = db.session.query(db.func.max(Experience.order)).scalar()
         order = (max_order if max_order is not None else 0) + 1
 
@@ -1512,11 +1953,11 @@ def admin_add_experience():
     e = Experience(
         title=title,
         company=company,
-        location=request.form.get('location', '').strip(),
-        start_date=request.form.get('start_date', '').strip(),
-        end_date=request.form.get('end_date', '').strip(),
-        emp_type=request.form.get('emp_type', '').strip(),
-        technologies=request.form.get('technologies', '').strip(),
+        location=location,
+        start_date=start_date,
+        end_date=end_date,
+        emp_type=emp_type,
+        technologies=technologies,
         responsibilities=json.dumps(resp_list),
         order=order,
         is_current=bool(request.form.get('is_current')),
@@ -1536,30 +1977,40 @@ def admin_edit_experience(eid):
     if request.method == 'POST':
         title = request.form.get('title', '').strip()
         company = request.form.get('company', '').strip()
+        location = request.form.get('location', '').strip()
+        start_date = request.form.get('start_date', '').strip()
+        end_date = request.form.get('end_date', '').strip()
+        emp_type = request.form.get('emp_type', '').strip()
+        technologies = request.form.get('technologies', '').strip()
         order_raw = request.form.get('order', '').strip()
 
         if not title or not company:
             flash('Job title and company are required.', 'danger')
             return render_template('admin/experience_form.html', experience=experience, form_data=form_data)
 
-        if order_raw:
-            try:
-                order = int(order_raw)
-            except ValueError:
-                flash('Display order must be a valid integer.', 'danger')
-                return render_template('admin/experience_form.html', experience=experience, form_data=form_data)
-        else:
-            order = experience.order
+        length_error = validate_field_lengths((
+            ('Job title', title, 200),
+            ('Company', company, 200),
+            ('Location', location, 200),
+            ('Start date', start_date, 50),
+            ('End date', end_date, 50),
+            ('Employment type', emp_type, 100),
+            ('Technologies', technologies, 500),
+        ))
+        order, order_error = parse_order_field(order_raw, experience.order)
+        if length_error or order_error:
+            flash(length_error or order_error, 'danger')
+            return render_template('admin/experience_form.html', experience=experience, form_data=form_data)
 
         resp_raw = request.form.get('responsibilities', '')
         resp_list = [r.strip() for r in resp_raw.split('\n') if r.strip()]
         experience.title = title
         experience.company = company
-        experience.location = request.form.get('location', '').strip()
-        experience.start_date = request.form.get('start_date', '').strip()
-        experience.end_date = request.form.get('end_date', '').strip()
-        experience.emp_type = request.form.get('emp_type', '').strip()
-        experience.technologies = request.form.get('technologies', '').strip()
+        experience.location = location
+        experience.start_date = start_date
+        experience.end_date = end_date
+        experience.emp_type = emp_type
+        experience.technologies = technologies
         experience.responsibilities = json.dumps(resp_list)
         experience.order = order
         experience.is_current = bool(request.form.get('is_current'))
@@ -1602,8 +2053,7 @@ def handle_csrf_error(e):
 # ─── App Initialization ───────────────────────────────────────────────────────
 
 with app.app_context():
-    db.create_all()
-    seed_data()
+    initialize_database()
 
 if __name__ == '__main__':
     port = int(os.environ.get('PORT', 5000))
