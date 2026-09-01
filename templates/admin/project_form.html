@@ -90,9 +90,9 @@
           <h6><i class="fas fa-image me-2" style="color:#F59E0B;"></i>Project Image</h6>
         </div>
         <div class="admin-card-body">
-          {% if project and project.image and uploaded_file_exists(project.image) %}
+          {% if project and storage_image_url(project.image) %}
           <div style="margin-bottom:12px;">
-            <img src="{{ url_for('static', filename=project.image) }}"
+            <img src="{{ storage_image_url(project.image) }}"
                  alt="{{ project.title }}" style="width:100%;border-radius:10px;aspect-ratio:16/9;object-fit:cover;" />
           </div>
           {% endif %}

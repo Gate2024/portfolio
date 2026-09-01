@@ -17,6 +17,7 @@ from werkzeug.utils import secure_filename
 from dotenv import load_dotenv
 from PIL import Image
 from sqlalchemy import text
+from supabase import create_client
 
 load_dotenv()
 
@@ -40,22 +41,46 @@ app.config['SQLALCHEMY_ENGINE_OPTIONS'] = {
     'pool_pre_ping': True,
 }
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
-app.config['UPLOAD_FOLDER'] = os.path.join('static', 'uploads')
 app.config['MAX_CONTENT_LENGTH'] = 16 * 1024 * 1024  # 16 MB
 app.config['SESSION_COOKIE_HTTPONLY'] = True
 app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'
 app.config['SESSION_COOKIE_SECURE'] = IS_PRODUCTION
 
-os.makedirs(app.config['UPLOAD_FOLDER'], exist_ok=True)
+_SUPABASE_URL = os.environ.get('SUPABASE_URL', '').strip().rstrip('/')
+_SUPABASE_STORAGE_BUCKET = os.environ.get('SUPABASE_STORAGE_BUCKET', '').strip()
+_SUPABASE_SECRET_KEY = (
+    os.environ.get('SUPABASE_SECRET_KEY', '').strip()
+    or os.environ.get('SUPABASE_SERVICE_ROLE_KEY', '').strip()
+)
+if IS_PRODUCTION and (
+    not _SUPABASE_URL
+    or not _SUPABASE_STORAGE_BUCKET
+    or not _SUPABASE_SECRET_KEY
+):
+    raise RuntimeError(
+        'SUPABASE_URL, SUPABASE_STORAGE_BUCKET, and '
+        'SUPABASE_SECRET_KEY (or SUPABASE_SERVICE_ROLE_KEY) '
+        'must be explicitly configured for production.'
+    )
+
+_supabase_client = None
 
 ALLOWED_EXTENSIONS = {'png', 'jpg', 'jpeg', 'gif', 'webp', 'pdf', 'svg'}
 ALLOWED_IMAGE_EXTENSIONS = {'png', 'jpg', 'jpeg', 'gif', 'webp'}
 MAX_IMAGE_SIZE = 5 * 1024 * 1024  # 5 MB per profile/project image
+IMAGE_SUBFOLDERS = {'profile', 'projects'}
 IMAGE_FORMAT_EXTENSIONS = {
     'PNG': {'png'},
     'JPEG': {'jpg', 'jpeg'},
     'GIF': {'gif'},
     'WEBP': {'webp'},
+}
+IMAGE_MIME_TYPES = {
+    'png': 'image/png',
+    'jpg': 'image/jpeg',
+    'jpeg': 'image/jpeg',
+    'gif': 'image/gif',
+    'webp': 'image/webp',
 }
 
 db = SQLAlchemy(app)
@@ -109,52 +134,90 @@ def validate_http_url(value, label, max_length=500):
     return raw_value, None
 
 
-def _uploaded_absolute_path(relative_path):
-    return os.path.realpath(os.path.join(app.static_folder, relative_path or ''))
+def _storage_is_configured():
+    return bool(
+        _SUPABASE_URL
+        and _SUPABASE_STORAGE_BUCKET
+        and _SUPABASE_SECRET_KEY
+    )
+
+
+def get_supabase_client():
+    """Return one server-side Supabase client per application process."""
+    global _supabase_client
+    if _supabase_client is None:
+        if not _storage_is_configured():
+            raise RuntimeError(
+                'Supabase Storage is not configured. Set SUPABASE_URL, '
+                'SUPABASE_STORAGE_BUCKET, and SUPABASE_SECRET_KEY '
+                '(or SUPABASE_SERVICE_ROLE_KEY).'
+            )
+        _supabase_client = create_client(_SUPABASE_URL, _SUPABASE_SECRET_KEY)
+    return _supabase_client
+
+
+def _storage_object_path(relative_path, expected_subfolder=None):
+    """Convert one database path into a safe Storage object path."""
+    if not isinstance(relative_path, str) or not relative_path:
+        return None
+    if '\\' in relative_path:
+        return None
+
+    parts = relative_path.split('/')
+    if len(parts) != 3 or parts[0] != 'uploads':
+        return None
+    subfolder, filename = parts[1], parts[2]
+    if subfolder not in IMAGE_SUBFOLDERS:
+        return None
+    if expected_subfolder and subfolder != expected_subfolder:
+        return None
+    if (
+        not filename
+        or filename in {'.', '..'}
+        or secure_filename(filename) != filename
+    ):
+        return None
+    return f'{subfolder}/{filename}'
+
+
+def storage_image_url(relative_path):
+    """Build a public Storage URL from a database-compatible image path."""
+    object_path = _storage_object_path(relative_path)
+    if not object_path or not _storage_is_configured():
+        return None
+    try:
+        return get_supabase_client().storage.from_(_SUPABASE_STORAGE_BUCKET).get_public_url(
+            object_path
+        )
+    except Exception:
+        app.logger.warning('Could not build the Supabase Storage image URL.')
+        return None
+
+
+app.jinja_env.globals['storage_image_url'] = storage_image_url
 
 
 def remove_uploaded_file(relative_path, subfolder):
-    """Remove only a file inside the expected upload subdirectory."""
-    if not relative_path:
-        return False
-    expected_folder = os.path.realpath(os.path.join(app.config['UPLOAD_FOLDER'], subfolder))
-    absolute_path = _uploaded_absolute_path(relative_path)
-    try:
-        inside_expected_folder = os.path.commonpath(
-            [expected_folder, absolute_path]
-        ) == expected_folder
-    except ValueError:
-        inside_expected_folder = False
-    if not inside_expected_folder or not os.path.isfile(absolute_path):
+    """Remove only a profile/projects object from Supabase Storage."""
+    object_path = _storage_object_path(relative_path, subfolder)
+    if not object_path or not _storage_is_configured():
         return False
     try:
-        os.remove(absolute_path)
+        get_supabase_client().storage.from_(_SUPABASE_STORAGE_BUCKET).remove(
+            [object_path]
+        )
         return True
-    except OSError:
-        app.logger.warning('Could not remove replaced upload: %s', relative_path)
+    except Exception:
+        app.logger.warning('Could not remove the Supabase Storage image.')
         return False
-
-
-def uploaded_file_exists(relative_path):
-    """Check an upload path without changing the database or processing the file."""
-    if not relative_path:
-        return False
-    upload_root = os.path.realpath(app.config['UPLOAD_FOLDER'])
-    absolute_path = _uploaded_absolute_path(relative_path)
-    try:
-        inside_upload_root = os.path.commonpath([upload_root, absolute_path]) == upload_root
-    except ValueError:
-        inside_upload_root = False
-    return inside_upload_root and os.path.isfile(absolute_path)
-
-
-app.jinja_env.globals['uploaded_file_exists'] = uploaded_file_exists
 
 
 def save_image_file(file, subfolder=''):
-    """Validate and save a portfolio image, returning (path, error)."""
+    """Validate and upload a portfolio image, returning (database path, error)."""
     if not file or not file.filename:
         return None, 'Please select an image file.'
+    if subfolder not in IMAGE_SUBFOLDERS:
+        return None, 'The image destination is not configured.'
 
     filename = secure_filename(file.filename)
     if not filename or '.' not in filename:
@@ -187,16 +250,24 @@ def save_image_file(file, subfolder=''):
 
     timestamp = datetime.now().strftime('%Y%m%d_%H%M%S_')
     filename = timestamp + filename
-    folder = os.path.join(app.config['UPLOAD_FOLDER'], subfolder)
-    os.makedirs(folder, exist_ok=True)
-    absolute_path = os.path.join(folder, filename)
-    relative_path = os.path.join('uploads', subfolder, filename).replace('\\', '/')
+    object_path = f'{subfolder}/{filename}'
+    relative_path = f'uploads/{object_path}'
     try:
         file.stream.seek(0)
-        file.save(absolute_path)
-    except OSError:
-        remove_uploaded_file(relative_path, subfolder)
-        return None, 'The image could not be saved. Please try again.'
+        image_data = file.stream.read()
+        get_supabase_client().storage.from_(_SUPABASE_STORAGE_BUCKET).upload(
+            path=object_path,
+            file=image_data,
+            file_options={
+                'cache-control': '3600',
+                'upsert': 'false',
+                'content-type': IMAGE_MIME_TYPES[extension],
+            },
+        )
+    except RuntimeError as error:
+        return None, str(error)
+    except Exception:
+        return None, 'The image could not be uploaded. Please try again.'
     return relative_path, None
 
 
@@ -1358,8 +1429,16 @@ def admin_edit_project(pid):
 @login_required
 def admin_delete_project(pid):
     p = Project.query.get_or_404(pid)
+    image_path = p.image
     db.session.delete(p)
-    db.session.commit()
+    try:
+        db.session.commit()
+    except Exception:
+        db.session.rollback()
+        flash('Project could not be deleted. Please try again.', 'danger')
+        return redirect(url_for('admin_projects')), 500
+    if image_path:
+        remove_uploaded_file(image_path, 'projects')
     flash('Project deleted.', 'success')
     return redirect(url_for('admin_projects'))
 

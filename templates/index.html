@@ -147,8 +147,8 @@
           <div class="hero-avatar-ring"></div>
           <div class="hero-avatar-ring ring-2"></div>
           <div class="hero-avatar">
-            {% if profile.profile_image and uploaded_file_exists(profile.profile_image) %}
-              <img src="{{ url_for('static', filename=profile.profile_image) }}" alt="{{ profile.full_name }}" />
+            {% if storage_image_url(profile.profile_image) %}
+              <img src="{{ storage_image_url(profile.profile_image) }}" alt="{{ profile.full_name }}" />
             {% else %}
               <div class="avatar-placeholder">
                 <span class="avatar-initials">{{ profile_initials }}</span>
@@ -208,8 +208,8 @@
       <div class="col-lg-5" data-aos="fade-right">
         <div class="about-image-block">
           <div class="about-img-bg"></div>
-          {% if profile.profile_image and uploaded_file_exists(profile.profile_image) %}
-            <img src="{{ url_for('static', filename=profile.profile_image) }}" alt="{{ profile.full_name }}" class="about-img" loading="lazy" />
+          {% if storage_image_url(profile.profile_image) %}
+            <img src="{{ storage_image_url(profile.profile_image) }}" alt="{{ profile.full_name }}" class="about-img" loading="lazy" />
           {% else %}
             <div class="about-img-placeholder">
               <i class="fas fa-user"></i>
@@ -428,8 +428,8 @@
         <div class="project-card-inner">
           <!-- Image -->
           <div class="project-img-wrap">
-            {% if project.image and uploaded_file_exists(project.image) %}
-              <img src="{{ url_for('static', filename=project.image) }}" alt="{{ project.title }}" class="project-img" loading="lazy" />
+            {% if storage_image_url(project.image) %}
+              <img src="{{ storage_image_url(project.image) }}" alt="{{ project.title }}" class="project-img" loading="lazy" />
             {% else %}
               <div class="project-img-placeholder">
                 <i class="fas fa-code"></i>
@@ -481,8 +481,8 @@
               </button>
             </div>
             <div class="modal-body">
-              {% if project.image and uploaded_file_exists(project.image) %}
-              <img src="{{ url_for('static', filename=project.image) }}" alt="{{ project.title }}" class="modal-project-img mb-4" loading="lazy" />
+              {% if storage_image_url(project.image) %}
+              <img src="{{ storage_image_url(project.image) }}" alt="{{ project.title }}" class="modal-project-img mb-4" loading="lazy" />
               {% endif %}
               <p class="modal-project-desc">{{ project.description }}</p>
 
